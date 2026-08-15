@@ -1,0 +1,12 @@
+# Dependencies and build output
+node_modules
+.next
+package-lock.json
+
+# Prose and planning documents are hand-formatted — do not reflow
+*.md
+docs/
+.cursor/
+
+# SQL migrations are hand-formatted for review readability
+supabase/migrations/

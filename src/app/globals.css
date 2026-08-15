@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+/*
+ * Base Tailwind/UI setup — part of the Wave 1 frozen base.
+ * Mobile-first, light theme. Product names (often Hebrew) are rendered with
+ * dir="auto" on their elements by feature components in Wave 2.
+ */
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background-color: var(--color-zinc-50);
+  color: var(--color-zinc-900);
+  font-family: var(--font-sans);
+}
