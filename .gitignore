@@ -47,3 +47,4 @@ ext-env.d.ts
 
 # cursor
 .cursor*
+.cursor/plans/
