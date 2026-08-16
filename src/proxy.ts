@@ -14,8 +14,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Run on every request except static assets.
+  // Run on every request except static assets. `.wasm` matters: the ZXing
+  // decoder binary is served from public/wasm/ (Wave 3 self-hosting) and a
+  // session refresh on a static binary fetch would be pure overhead.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|wasm)$).*)",
   ],
 };

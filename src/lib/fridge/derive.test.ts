@@ -272,9 +272,11 @@ describe("deriveActivity", () => {
     };
   }
 
-  it("maps negative deltas to consumed and positive to restored", () => {
+  // Delta = old − new (plan §12): +50 means "50 points consumed",
+  // −25 means "corrected upward / restored by 25 points".
+  it("maps positive deltas to consumed and negative to restored", () => {
     const [consumed, restored] = deriveActivity(
-      [event(-50, 50), event(25, 25)],
+      [event(50, 50), event(-25, 25)],
       NOW,
     );
     expect(consumed.direction).toBe("consumed");
@@ -282,7 +284,7 @@ describe("deriveActivity", () => {
   });
 
   it("humanizes the level and keeps the product name for dir=auto rendering", () => {
-    const [entry] = deriveActivity([event(-50, 50)], NOW);
+    const [entry] = deriveActivity([event(50, 50)], NOW);
     expect(entry.levelLabel).toBe("½");
     expect(entry.productName).toBe("חלב טרי 3%");
     expect(entry.relativeLabel).toBe("12h ago");

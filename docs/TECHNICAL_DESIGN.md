@@ -48,7 +48,7 @@ Legend: items marked *(exists)* are in the repository today; everything else is 
 │   │   ├── layout.tsx · globals.css
 │   │   └── error.tsx · not-found.tsx              # global error boundaries
 │   ├── components/
-│   │   ├── ui/                                    # vendored shadcn/ui primitives (button, input, sheet, tabs, …)
+│   │   ├── ui/                                    # hand-vendored shadcn-style primitives (button, input, badge, modal, skeleton)
 │   │   ├── fridge/                                # feature components (inventory, add flow, restock — see §9.2)
 │   │   └── scanner/                               # BarcodeScanner client island + typed-code fallback
 │   ├── lib/
@@ -157,7 +157,7 @@ erDiagram
 | products | `CHECK (category IN (…the 10 taxonomy values…))` | The taxonomy is closed; invalid categories cannot enter storage. |
 | fridge_items | `CHECK (remaining_percent IN (0,25,50,75,100))` | The five-level consumption model is enforced by the database, not just the UI. |
 | consumption_events | `CHECK (remaining_after IN (0,25,50,75,100))` | Same invariant on the log. |
-| consumption_events | `CHECK (delta_percent BETWEEN -100 AND 100)` | Sanity bound on deltas (sign encodes direction: negative = consumed, positive = correction upward). |
+| consumption_events | `CHECK (delta_percent BETWEEN -100 AND 100)` | Sanity bound on deltas (sign encodes direction, delta = old − new per plan §12: positive = consumed, negative = correction upward). |
 
 ### 3.4 RLS policies (the authorization layer)
 
@@ -204,8 +204,14 @@ Pure functions, no I/O, table-driven tests. This module runs **twice** per scan 
 raw string
   → strip whitespace and hyphens
   → must be digits only            (else: invalid — "not a barcode")
-  → length must be 8, 12, 13, 14   (else: invalid — unsupported length)
-  → mod-10 check digit must verify (else: invalid — "likely misread, re-scan")
+  → length must be 8–14            (else: invalid — unsupported length;
+                                    9–11 digits are accepted as GTIN-12/13
+                                    forms that lost leading zeros and are
+                                    restored by canonicalization, matching
+                                    the OFF convention — research §3.6)
+  → mod-10 check digit must verify (else: invalid — "likely misread, re-scan";
+                                    the check digit is right-anchored, so it
+                                    is invariant under left zero-padding)
   → canonicalize (§4.3)
   → classify: RCN store-internal vs GTIN (§4.4)
 ```
@@ -429,7 +435,7 @@ The assignment asks for the main create/read/update/delete operations explicitly
 
 ### 8.1 The consumption model
 
-Per-unit integer `remaining_percent` constrained to **{100, 75, 50, 25, 0}**, mutated by *setting the new absolute level* (the user taps "½"), never by entering deltas. Chosen because it is: one tap on mobile; idempotent (re-tapping the current level is a no-op — double-tap-safe); meaningful for any product type (a "quarter left" of milk, hummus, or eggs is equally useful as an approximation); trivially enforced (`CHECK` constraint); and self-correcting (raising a level is allowed and logged as a positive-delta event).
+Per-unit integer `remaining_percent` constrained to **{100, 75, 50, 25, 0}**, mutated by *setting the new absolute level* (the user taps "½"), never by entering deltas. Chosen because it is: one tap on mobile; idempotent (re-tapping the current level is a no-op — double-tap-safe); meaningful for any product type (a "quarter left" of milk, hummus, or eggs is equally useful as an approximation); trivially enforced (`CHECK` constraint); and self-correcting (raising a level is allowed and logged as a negative-delta correction event, plan §12).
 
 ```mermaid
 stateDiagram-v2
@@ -447,7 +453,7 @@ stateDiagram-v2
     end note
 ```
 
-Every transition writes one `consumption_events` row: `delta_percent = new − old` (negative when consuming), `remaining_after = new`.
+Every transition writes one `consumption_events` row: `delta_percent = old − new` (positive when consuming — "points consumed"; negative on an upward correction/restock, per the approved plan §12 semantics: `100 → 75` logs `+25`, `0 → 50` logs `−50`), `remaining_after = new`.
 
 ### 8.2 Derivations (computed at read time — never stored)
 
@@ -482,8 +488,8 @@ The authenticated shell `(app)/layout.tsx` renders a **bottom navigation bar** w
 
 ```text
 components/
-├── ui/                     # vendored shadcn/ui primitives: button, input, card, sheet,
-│                           # tabs, badge, select, skeleton, dialog …
+├── ui/                     # hand-vendored shadcn-style primitives: button, input,
+│                           # badge, skeleton, and one modal (sheet + dialog in one)
 ├── scanner/
 │   ├── BarcodeScanner.tsx  # client island; props: { onDetected(raw: string), paused? }
 │   └── ManualCodeEntry.tsx # typed-barcode field, always rendered below the viewport
@@ -532,7 +538,7 @@ Tapping a unit chip opens the level picker (Full / ¾ / ½ / ¼ / Finished) with
 | `/add` · Search | "No products found for '…'" + "Add it manually" CTA (pre-fills the Manual tab's name) | Inline skeleton rows while a query is in flight | Toast + retry |
 | `/add` · Manual | — | Submit button pending state | Field-level messages from `fieldErrors`; toast for non-field errors |
 | `/restock` | "Nothing needs restocking right now" | `loading.tsx` skeleton | Global boundary |
-| Any mutation | — | Optimistic UI (§9.4) / pending button | `sonner` toast with the action's error message |
+| Any mutation | — | Optimistic UI (§9.4) / pending button | toast (custom `Toaster` component) with the action's error message |
 
 ### 9.6 Language and RTL
 
@@ -571,7 +577,7 @@ Under RLS a foreign row is *invisible*: updates/deletes affect zero rows and rea
 
 ### 11.4 Global boundaries and feedback
 
-`error.tsx` (retryable "something went wrong") and `not-found.tsx` at the app root; `sonner` toasts for action failures; inline field messages for form validation. No stack traces or internals ever render to the client.
+`error.tsx` (retryable "something went wrong") and `not-found.tsx` at the app root; toasts (the in-repo `app-shell/Toaster` component — sonner's role, no library) for action failures; inline field messages for form validation. No stack traces or internals ever render to the client.
 
 ## 12. Validation
 

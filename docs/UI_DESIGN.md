@@ -148,7 +148,7 @@ Rationale: a fridge list where every card floats reads as noise. Borders group; 
 
 ### 3.6 Icons
 
-**Family: Lucide** (`lucide-react`) — already the icon dependency of the vendored shadcn/ui primitives (plan §9), consistent 24 px grid, `stroke-width={2}` always. No second icon family, no emoji-as-icon, no filled variants.
+**Family: Lucide** — consistent 24 px grid, `stroke-width={2}` always. No second icon family, no emoji-as-icon, no filled variants. *Implementation note (Wave 2/3): the glyphs are vendored as plain SVG components in `src/components/icons.tsx` (and `scanner/scanner-icons.tsx`) with ISC attribution — the `lucide-react` package is not installed, because dependencies were frozen during parallel work and the owned-code form is easier to explain.*
 
 | Size | Usage |
 |---|---|
@@ -466,7 +466,7 @@ One-hand audit: the sheet's options span the bottom ~40 % of a 6.1-inch screen; 
 
 **Loading doctrine:** skeletons mirror the final layout (`bg-muted rounded-lg animate-pulse`), lists show 3–6 placeholder rows, buttons carry their own inline `Loader2` spinner + verb ("Adding…", "Logging in…"), and there is **no full-page spinner anywhere**. Mutations are optimistic (§8), so most writes need no loading state at all.
 
-**Error doctrine:** transient action failures → destructive-toned toast with retry guidance; contextual failures → inline banner/state per the table; form errors → field-level text; never a bare "Error" and never an alert dialog for something a toast can say. Failures degrade to the manual path wherever one exists (mirrors the plan's "degraded, not fatal" backend policy, plan §8). Toasts (sonner) anchor bottom-center, offset 72 px above the nav on mobile, elevation level 1, one line + optional action.
+**Error doctrine:** transient action failures → destructive-toned toast with retry guidance; contextual failures → inline banner/state per the table; form errors → field-level text; never a bare "Error" and never an alert dialog for something a toast can say. Failures degrade to the manual path wherever one exists (mirrors the plan's "degraded, not fatal" backend policy, plan §8). Toasts (the custom `Toaster` component) anchor bottom-center, offset 72 px above the nav on mobile, elevation level 1, one line + optional action.
 
 ---
 
@@ -493,11 +493,11 @@ Baseline: WCAG 2.2 AA, with the Apple/Material 44 px target convention adopted a
 
 - **Touch targets:** every interactive element ≥ 44 × 44 px effective hit area (the visual element may be smaller with padding making up the difference — filter pills, nav slots, show-password, torch, clear-search are all audited in their specs). Adjacent targets keep ≥ 8 px gaps.
 - **Focus states:** global `focus-visible` treatment — 2 px `ring` (primary green) with 2 px offset (`focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`) on *every* interactive element, including unit chips, nav slots, category chips, and sheet rows. Ring-on-white contrast ≈ 4.8:1, satisfying Focus Appearance (2.4.11). Never `outline: none` without this replacement.
-- **Keyboard:** full app operable without touch — segments/tabs move with arrow keys (Radix), sheets/dialogs trap focus, restore it to the triggering chip on close, and close on Esc; Enter submits forms; the scanner has a complete keyboard equivalent by design (the manual barcode field). Toast Undo is focusable.
+- **Keyboard:** full app operable without touch — segments/tabs move with arrow keys (hand-rolled ARIA tablist in `AddFlow`), sheets/dialogs trap focus, restore it to the triggering chip on close, and close on Esc; Enter submits forms; the scanner has a complete keyboard equivalent by design (the manual barcode field). Toast Undo is focusable.
 - **Contrast:** commitments in §3.3 (4.5:1 text, 3:1 UI graphics/indicators). Muted text never sits on muted surfaces except the verified warning pair.
 - **Status ≠ color alone:** low = amber **+ `TriangleAlert` + "Low" text + "¼" fraction**; finished = gray **+ "Finished" label + empty gauge**; gauge fills always pair with text fractions; destructive rows carry icon + verb.
 - **Labels:** every input has a visible `<label>` (placeholders are examples, never labels); icon-only buttons (sign-out, torch, clear, stepper, show password) carry `aria-label`s; unit chips get full sentence labels (§6.3); correct `autocomplete` / `inputmode` attributes per §6.1 (SC 1.3.5).
-- **Announcements:** scanner state changes ("Looking it up…", "Not found") and search result counts announce via a polite `aria-live` region; toasts use sonner's built-in live region.
+- **Announcements:** scanner state changes ("Looking it up…", "Not found") and search result counts announce via a polite `aria-live` region; the custom `Toaster` renders its own polite live region.
 - **Text sizing:** 16 px minimum for inputs (§3.1); body-critical content at 14 px+; the layout tolerates 200 % browser zoom (single-column flows, no fixed-height text boxes); no text baked into images.
 - **Forms and consumption controls (extra care per brief):** error text is tied to fields via `aria-describedby`; the level picker is semantically a radio group (current level `aria-current`, group labeled by the product name); destructive confirm dialogs name the object ("Remove this unit of X?") so screen-reader users confirm the right thing.
 - **RTL correctness:** `dir="auto"` on every catalog-text element and the search input (§6.4.2); barcode/digit fields pinned `dir="ltr"`; direction-neutral separators (·); no directional icons whose meaning would flip.
@@ -556,7 +556,7 @@ This section translates the specification into work rules for Wave 2 Agents A/B/
 1. Apply the §4 token block to `globals.css` (`:root` values + `@theme inline` additions). Do not create a second CSS file; do not touch `.dark`.
 2. Wire **Rubik** via `next/font/google` in the root layout: subsets `['latin','hebrew']`, weights `['400','500','600']`, `variable: '--font-rubik'`, `display: 'swap'`; expose through `--font-sans` per §4.
 3. Viewport export: `viewport-fit=cover`; metadata: `theme-color #FBFAF6`.
-4. Vendor exactly these shadcn/ui primitives (new-york style): `button`, `input`, `label`, `badge`, `tabs`, `dialog`, `sheet`, `skeleton`, `separator`, plus `sonner` for toasts (already in the approved stack, plan §9). **Do not add** `drawer`/vaul, `select`, `table`, chart, or calendar components — the designs deliberately avoid them, and dependency additions are frozen without coordinator sign-off (plan §21).
+4. Vendor shadcn-style primitives (new-york look). *As built (Wave 2/3): hand-written equivalents in `src/components/ui/` — `button`, `input`, `badge`, `skeleton`, and a single `modal` that serves both the sheet and dialog roles — plus a ~100-line custom `Toaster` (`app-shell/Toaster.tsx`) in sonner's role and hand-rolled ARIA tabs inside `AddFlow`. No shadcn/Radix/sonner packages were installed (dependencies were frozen during parallel Wave 2 work), and the owned equivalents follow this document's tokens and interaction specs.* **Do not add** `drawer`/vaul, `select`, `table`, chart, or calendar components — the designs deliberately avoid them, and dependency additions are frozen without coordinator sign-off (plan §21).
 
 ### 14.2 Component contract (build once, in the owning agent's directory)
 

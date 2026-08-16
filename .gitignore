@@ -13,6 +13,10 @@
 # testing
 /coverage
 
+# generated: ZXing WASM decoder binary, copied from node_modules by
+# scripts/sync-zxing-wasm.mjs (predev/prebuild/pretest) — never hand-edited
+/public/wasm/
+
 # next.js
 /.next/
 /out/

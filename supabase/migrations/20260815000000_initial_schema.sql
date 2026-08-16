@@ -109,7 +109,8 @@ create table public.consumption_events (
   -- Denormalized owner (also derivable via the item) so RLS on this table is
   -- a direct column comparison.
   user_id         uuid not null references auth.users (id) on delete cascade,
-  -- Signed change: negative = consumed, positive = correction upward.
+  -- Signed change, delta = old − new (docs/IMPLEMENTATION_PLAN.md §12):
+  -- positive = points consumed, negative = correction upward/restoration.
   delta_percent   int not null,
   remaining_after int not null,
   created_at      timestamptz not null default now(),

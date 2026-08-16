@@ -12,21 +12,30 @@ lives in [`docs/`](docs/):
 - [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) — schema, contracts, flows
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — wave-by-wave build plan
 
-## Status: Wave 1 (foundation)
+## Status: Wave 3 (integrated MVP)
 
-Implemented: project skeleton, Supabase auth (login/signup/logout), protected
-routes, the complete MVP database schema + RLS migration, CI, and the frozen
-TypeScript/API contracts that Wave 2 builds against.
+The full flow works end to end: camera scan → barcode
+normalization/classification → local catalog lookup → Open Food Facts
+fallback → product confirmation → add units to the fridge → consume
+(Full → ¾ → ½ → ¼ → Finished) → restock. Also implemented: catalog text
+search, manual product entry (the fallback for unknown/store-internal
+barcodes), the restock page (running low · finished recently · recent
+activity), and a ~7,490-product seeded Israeli catalog
+(`data/catalog-seed.csv`, Shufersal price-transparency data).
 
-Not yet implemented (Wave 2+): barcode scanning and lookup, catalog search and
-seeding, fridge CRUD, consume/restock flows. The `/add` and `/restock` pages
-are intentional placeholders, and the API routes return contract-shaped stub
-responses.
+Camera scanning needs a browser with camera access over HTTPS (or
+`localhost`). The ZXing WASM decoder is self-hosted: `scripts/sync-zxing-wasm.mjs`
+copies the installed `zxing-wasm` binary into `public/wasm/` automatically
+before every `dev` / `test` / `build` run, and the scanner loads it from our
+own origin — no CDN at runtime.
 
 ## Stack
 
 Next.js 16 (App Router) · TypeScript (strict) · Tailwind CSS v4 · Supabase
-(Postgres + Auth, `@supabase/ssr`) · Zod v4 · Vitest · ESLint · Vercel.
+(Postgres + Auth, `@supabase/ssr`) · Zod v4 ·
+`@yudiel/react-qr-scanner` (barcode-detector + zxing-wasm) · Vitest · ESLint ·
+Vercel. UI primitives, icons (Lucide glyphs), and toasts are small in-repo
+components — no shadcn/sonner/lucide-react packages.
 
 ## Local setup
 
@@ -50,9 +59,8 @@ npm run dev                  # http://localhost:3000
    **"Confirm email"** (approved MVP behavior: signup logs you in
    immediately).
 
-The `SUPABASE_SERVICE_ROLE_KEY` line in `.env.example` stays empty for now —
-it is used only by the local catalog seed script that arrives in Wave 2, and
-must never be committed or set on Vercel.
+The `SUPABASE_SERVICE_ROLE_KEY` is used ONLY by the local catalog seed script
+(step 3) — it must never be committed or set on Vercel.
 
 ### 2. Apply the database migration
 
@@ -71,20 +79,38 @@ The migration creates `products`, `fridge_items`, and `consumption_events`
 with Row Level Security enabled and all policies — RLS is the authorization
 layer for the whole app.
 
-### 3. Verify
+### 3. Seed the Israeli catalog
+
+Set `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (Project Settings → API →
+`service_role` key), then:
+
+```bash
+npm run seed:db   # upserts data/catalog-seed.csv (~7,490 products)
+```
+
+The committed CSV was built from Shufersal's statutory price-transparency
+files; `npm run seed:fetch` regenerates it (needs access to the Israeli
+portal and is never required for grading — the CSV is committed).
+
+### 4. Verify
 
 Sign up at `/signup`, land on the (empty) `/fridge`. Logged-out visits to
-`/fridge`, `/add`, or `/restock` redirect to `/login`.
+`/fridge`, `/add`, or `/restock` redirect to `/login`. On `/add`, searching
+"במבה" should hit the seeded catalog, and scanning/typing barcode
+`7290000066318` should resolve without calling Open Food Facts.
 
 ## Scripts
 
 ```bash
-npm run dev          # dev server
-npm run build        # production build
+npm run dev          # dev server (auto-syncs the scanner WASM binary first)
+npm run build        # production build (same auto-sync)
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
-npm test             # Vitest (single run)
+npm test             # Vitest (single run; same auto-sync)
 npm run test:watch   # Vitest (watch)
+npm run seed:db      # seed/upsert the product catalog into Supabase
+npm run seed:fetch   # regenerate data/catalog-seed.csv from the retailer portal
+npm run wasm:sync    # manually copy zxing_reader.wasm into public/wasm/
 npm run format       # Prettier (write)
 npm run format:check # Prettier (check)
 ```
@@ -95,26 +121,38 @@ push and pull request.
 ## Deployment (Vercel)
 
 1. Push this repo to GitHub and import it in Vercel (framework preset:
-   Next.js — no custom build settings needed).
+   Next.js — no custom build settings needed; `prebuild` syncs the scanner
+   WASM binary automatically).
 2. Set two environment variables in the Vercel project:
    `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
    Do **not** set the service-role key on Vercel.
-3. Deploy. Expected result: visiting the production URL redirects to
-   `/login`; after signing up you land on the protected empty `/fridge`.
+3. Deploy. Camera scanning requires HTTPS, which Vercel provides by default —
+   verify `/add` → Scan → "Enable camera" on a real phone, and that
+   `https://<your-app>/wasm/zxing_reader.wasm` is served (the self-hosted
+   decoder).
 
-## Project structure (Wave 1)
+## Project structure
 
 ```
 src/
-  app/                  # App Router: (auth) login/signup, (app) fridge/add/restock, api/
-  components/           # auth forms, app shell (header, bottom nav)
+  app/                  # App Router: (auth) login/signup, (app) fridge/add/restock, api/, scan-test
+  components/
+    app-shell/          # top bar, bottom nav, toaster
+    fridge/             # inventory, add flow (scan/search/manual), restock components
+    scanner/            # BarcodeScanner island, state machine, UPC-E expansion, WASM config
+    ui/                 # hand-vendored shadcn-style primitives (button, input, badge, modal, skeleton)
   lib/
     types.ts            # FROZEN shared domain + contract types
     schemas.ts          # FROZEN Zod boundary schemas
     routes.ts           # FROZEN route map + gating predicates
-    actions/            # server-action signatures (stubs until Wave 2)
+    barcode/            # GTIN domain: normalize · check digit · classify (RCN)
+    products/           # lookup chain, search, Open Food Facts client, categorization
+    fridge/             # derivations (low/finished/activity), formatting, mappers, queries
+    actions/            # server actions (fridge CRUD, manual product)
     supabase/           # server / browser / proxy-session clients
   proxy.ts              # session refresh + route gating (Next 16 network boundary)
+scripts/                # catalog fetch/seed + WASM sync
+data/catalog-seed.csv   # committed Israeli catalog (~7,490 products)
 supabase/migrations/    # FROZEN schema + RLS (reviewable SQL)
 ```
 

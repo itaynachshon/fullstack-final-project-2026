@@ -10,12 +10,15 @@
  * Responsibility: camera → detect grocery barcode (EAN-13/EAN-8/UPC-A/UPC-E)
  * → emit the RAW detected string exactly once per armed scan. Normalization,
  * check digits, RCN classification, and product lookup are Agent A's domain
- * and happen in the parent (Wave 3 integration); nothing here touches the
- * network, Supabase, or src/lib/{products,barcode}.
+ * and happen in the parent; nothing here touches the network, Supabase, or
+ * src/lib/{products,barcode}. The single scanner-layer transform is UPC-E →
+ * UPC-A expansion (docs/TECHNICAL_DESIGN.md §4.1 assigns it here, because
+ * only the decoder knows the symbology; see upce.ts).
  *
  * Detection stack: @yudiel/react-qr-scanner → barcode-detector ponyfill →
- * zxing-wasm (WASM fetched from jsDelivr by default; self-hosting is a
- * Wave 3 task — see the Wave 2 Agent C handoff notes).
+ * zxing-wasm. The WASM decoder binary is SELF-HOSTED (served from our own
+ * origin, docs/TECHNICAL_DESIGN.md §9.3) — zxing-config.ts registers the
+ * override before the scanner chunk mounts.
  *
  * Duplicate suppression: after the first accepted detection the state
  * machine (scanner-state.ts) locks in `detected` and the library is paused
@@ -70,15 +73,23 @@ import {
   type ScannerStatus,
 } from "./scanner-state";
 import animations from "./scanner.module.css";
+import { expandUpcE } from "./upce";
 
 /**
  * A fresh lazy wrapper per enable attempt lets "Try again" retry a failed
- * chunk download (React caches a rejected lazy factory forever).
+ * chunk download (React caches a rejected lazy factory forever). The
+ * self-hosted WASM override is registered alongside the chunk load — always
+ * before the library's first decode.
  */
 function createLazyScanner() {
-  return lazy(async () => ({
-    default: (await import("@yudiel/react-qr-scanner")).Scanner,
-  }));
+  return lazy(async () => {
+    const [scannerModule, zxingConfig] = await Promise.all([
+      import("@yudiel/react-qr-scanner"),
+      import("./zxing-config"),
+    ]);
+    zxingConfig.configureSelfHostedZXing();
+    return { default: scannerModule.Scanner };
+  });
 }
 
 /** Grocery formats only — validated against the installed library's types. */
@@ -244,7 +255,11 @@ export function BarcodeScanner({
     (codes: IDetectedBarcode[]) => {
       dispatch({
         type: "detections",
-        rawValues: codes.map((code) => code.rawValue),
+        // UPC-E is emitted in its expanded UPC-A form (TECHNICAL_DESIGN §4.1);
+        // every other symbology passes through untouched.
+        rawValues: codes.map((code) =>
+          code.format === "upc_e" ? expandUpcE(code.rawValue) : code.rawValue,
+        ),
         paused: pausedRef.current,
       });
     },

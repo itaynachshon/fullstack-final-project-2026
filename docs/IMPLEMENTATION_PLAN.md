@@ -139,7 +139,7 @@ The most-reviewed decision in this synthesis. Final flow:
 flowchart TD
     Scan["Barcode from scanner or manual code entry"] --> Norm["Normalize + validate (client + server): digits only, length 8/12/13/14, mod-10 check digit"]
     Norm -->|invalid| Rescan["Reject: re-scan prompt (likely misread)"]
-    Norm -->|"RCN prefix 2xx/02x (store-internal, weighed items)"| Manual["Manual entry form, barcode field cleared"]
+    Norm -->|"RCN prefix 2xx/02x/04x/all-zeros (store-internal, weighed items)"| Manual["Manual entry form, barcode field cleared"]
     Norm -->|"canonical GTIN"| DB{"products table (seeded catalog + cached OFF + user products)"}
     DB -->|hit| Add["Show product, confirm add to fridge"]
     DB -->|miss| OFFCall{"Open Food Facts GET /api/v2/product/:code (server-side, 3s timeout)"}
@@ -159,7 +159,7 @@ flowchart TD
 | Cache OFF results? | **Yes — permanently, into `products` with `source='off'`** | Turns every first scan into shared catalog data; second scan of the same product never leaves our DB; ODbL obligations are attribution + share-alike on the cached rows (light for a student project; attribution rendered in footer + README, see §17) |
 | Negative caching of misses | **No** | Misses are rare and cheap; complexity not justified |
 | Unknown barcode | Manual-entry form **prefilled with the normalized barcode**; saved as `source='user'` product visible to all users | Keeps flow unblocked; grows the catalog |
-| Weighed-goods / store-internal codes (RCN `2xx`/`02x`) | Detected **before** any lookup → routed straight to manual entry | By GS1 standard these can never resolve in any global DB (`BARCODE_APIS.md` §3.4) |
+| Weighed-goods / store-internal codes (RCN — the full GS1 restricted set on the canonical 13-digit form: `200–299`, `020–029`, plus the company-internal `040–049` and all-zeros-prefix ranges; `2xx`/`02x` is the common Israeli weighed-goods case) | Detected **before** any lookup → routed straight to manual entry | By GS1 standard these can never resolve in any global DB (`BARCODE_APIS.md` §3.4 verifies all four ranges; TECHNICAL_DESIGN §4.4 specifies them) |
 | EAN/UPC/GTIN storage | **TEXT column**, canonical OFF-style form: strip to digits → validate check digit → EAN-8 stays 8 digits; 9–12 digits zero-pad to 13; 13 stays; 14 with leading 0 strips to 13 | Preserves leading zeros (a BIGINT would corrupt UPC-A codes); cache keys identical to OFF `code` values; both tested APIs accept this form (`BARCODE_APIS.md` §3.6) |
 | What we copy locally | barcode, name, brand/manufacturer, package size, category (ours), image URL (OFF hotlink) | Minimum needed for the product experience |
 | What we do NOT copy | Prices, promotions, store lists, nutrition | Not needed for fridge tracking; prices imply a freshness promise we can't keep; keeps DB small and the story clean |
@@ -259,7 +259,7 @@ The backend is the Next.js server runtime on Vercel. No extra layers: no reposit
 ## 9. Frontend Architecture
 
 - **Framework:** Next.js 16 App Router (current stable 16.3.x, verified 2026-08-14), React server components by default, TypeScript strict.
-- **Styling:** Tailwind CSS + a small set of shadcn/ui primitives (vendored into the repo — ideal for the assignment's "explain every component" requirement) + `sonner` for toasts. Mobile-first: the primary device is a phone.
+- **Styling:** Tailwind CSS + a small set of shadcn/ui primitives (vendored into the repo — ideal for the assignment's "explain every component" requirement) + `sonner` for toasts. Mobile-first: the primary device is a phone. *As built (Wave 2/3): the primitives are hand-written shadcn-style equivalents in `src/components/ui/` and toasts are a small custom `Toaster` component rather than the sonner package — package files were frozen during parallel Wave 2 work, and the owned code is easier to explain; see UI_DESIGN §14.1.*
 - **State management:** server-centric. Server components fetch; after mutations, server actions `revalidatePath` and the UI re-renders. Client state is local `useState` only in: scanner, add-flow tabs, consume control (with `useOptimistic` for instant feedback). **No Redux/Zustand/React Query** — nothing in this app justifies them; this is the documented state-management answer for the technical design doc.
 - **Language/RTL:** English UI; product names are Hebrew and rendered with `dir="auto"` on name elements. (Flippable decision — see §24.)
 
@@ -274,7 +274,7 @@ The backend is the Next.js server runtime on Vercel. No extra layers: no reposit
 
 **Barcode scanning UX:** `<BarcodeScanner onDetected={(code) => ...} />` isolated client component wrapping `@yudiel/react-qr-scanner` with `formats={['ean_13','ean_8','upc_a','upc_e']}`, rear camera constraint, torch toggle where supported. States: requesting-permission → scanning → detected (haptic/beep + pause). Permission denied / no camera → inline manual code entry field (always rendered below the viewport as well). After detection: normalize client-side (instant misread rejection) → call lookup API → product-confirm sheet or manual-form redirect per §6 flow.
 
-**Why this scanner library (supersedes the initial plan):** the native BarcodeDetector API is unavailable on iOS Safari (disabled by default through Safari 26.x per caniuse, and broken under the flag since iOS 18 per Apple dev forums; verified 2026-08-14). `html5-qrcode` from the initial plan is officially unmaintained. `@yudiel/react-qr-scanner` v2.6 (MIT, ~250k weekly downloads, active 2026 releases) wraps the maintained `barcode-detector` ponyfill (v3.2.1, July 2026) over `zxing-wasm` — WASM decoding works on every modern mobile browser. Note: the ZXing `.wasm` binary loads from jsDelivr CDN by default; hardening task in Wave 3 self-hosts it via `prepareZXingModule` for demo independence.
+**Why this scanner library (supersedes the initial plan):** the native BarcodeDetector API is unavailable on iOS Safari (disabled by default through Safari 26.x per caniuse, and broken under the flag since iOS 18 per Apple dev forums; verified 2026-08-14). `html5-qrcode` from the initial plan is officially unmaintained. `@yudiel/react-qr-scanner` v2.6 (MIT, ~250k weekly downloads, active 2026 releases) wraps the maintained `barcode-detector` ponyfill (v3.2.1, July 2026) over `zxing-wasm` — WASM decoding works on every modern mobile browser. Note: the ZXing `.wasm` binary loads from jsDelivr CDN by default; hardening task in Wave 3 self-hosts it via `prepareZXingModule` for demo independence. *Done in Wave 3: `scripts/sync-zxing-wasm.mjs` copies the installed binary to `public/wasm/` before every dev/test/build run, and the scanner registers a `locateFile` override (`src/components/scanner/zxing-config.ts`) so the decoder loads from our origin.*
 
 ---
 
@@ -366,7 +366,7 @@ Matches the assignment's list (Vitest, RTL, Playwright, documented manual tests)
 
 | Layer | Tool | What (the meaningful cases) |
 |---|---|---|
-| Unit — barcode | Vitest | Table-driven: normalization (12→13 pad, 14→13 strip, EAN-8 stays 8), check-digit accept/reject, RCN classification (`2xx`/`02x`), garbage input |
+| Unit — barcode | Vitest | Table-driven: normalization (9–12→13 pad, 14→13 strip, EAN-8 stays 8), check-digit accept/reject, RCN classification (all four GS1 ranges: `2xx`/`02x`/`04x`/all-zeros), garbage input |
 | Unit — consumption | Vitest | setRemaining transitions incl. `finished_at` set/clear, event delta signs, idempotent re-set, low/finished derivation boundaries (25 vs 26) |
 | Unit — lookup chain | Vitest (mocked fetch + mocked DB layer) | DB hit short-circuits; OFF hit maps + caches; OFF 404 → not_found; OFF timeout → not_found + `fallbackUsed`; RCN never calls OFF |
 | Unit — validation | Vitest | Zod schemas: boundary + malicious inputs (the assignment's "invalid inputs" requirement) |

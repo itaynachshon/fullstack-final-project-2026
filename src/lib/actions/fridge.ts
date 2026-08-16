@@ -79,8 +79,9 @@ export async function addToFridge(
 /**
  * Sets a unit's ABSOLUTE remaining level (not a delta). Idempotent no-op when
  * unchanged; stamps `finished_at` at 0 and clears it when a finished unit is
- * corrected upward; writes the signed consumption event (delta = new − old,
- * negative = consumed) in the same logical operation.
+ * corrected upward; writes the signed consumption event (delta = old − new:
+ * positive = points consumed, negative = upward correction, per
+ * docs/IMPLEMENTATION_PLAN.md §12) in the same logical operation.
  *
  * Atomicity note: Supabase's REST layer offers no multi-statement transaction
  * without a database function, and the schema is frozen — so the update and
@@ -130,13 +131,15 @@ export async function setRemaining(
     return notFound("That item isn't in your fridge.");
   }
 
-  // Signed event: negative = consumed, positive = correction upward.
+  // Signed event, delta = old − new (docs/IMPLEMENTATION_PLAN.md §12):
+  // 100 → 75 logs +25 (25 points consumed); 0 → 50 logs −50 (a corrective
+  // negative-consumption/restoration event).
   const { error: eventError } = await supabase
     .from("consumption_events")
     .insert({
       fridge_item_id: itemId,
       user_id: userId,
-      delta_percent: remainingPercent - currentLevel,
+      delta_percent: currentLevel - remainingPercent,
       remaining_after: remainingPercent,
     });
 

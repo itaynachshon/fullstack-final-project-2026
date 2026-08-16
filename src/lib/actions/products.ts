@@ -8,14 +8,14 @@
  * NOT an error (the existing product is returned with existed=true); optional
  * addUnits also inserts fridge rows in the same action.
  *
- * Barcode classification goes through the Wave 3 seam in
- * src/lib/fridge/barcode.ts — Agent A's real GTIN module replaces it there
- * without touching this action.
+ * Barcode classification uses the canonical barcode domain module
+ * (src/lib/barcode/ — normalization, check digit, RCN detection), the single
+ * implementation shared by the lookup chain and every form.
  */
 
 import { revalidatePath } from "next/cache";
 
-import { classifyBarcode } from "@/lib/fridge/barcode";
+import { classifyBarcode } from "@/lib/barcode";
 import { mapProductRow, type ProductRow } from "@/lib/fridge/mappers";
 import { ROUTES } from "@/lib/routes";
 import { createManualProductSchema, fieldErrorsOf } from "@/lib/schemas";

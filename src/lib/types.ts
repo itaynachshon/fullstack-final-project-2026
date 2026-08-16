@@ -64,7 +64,11 @@ export interface FridgeItem {
   updatedAt: string;
 }
 
-/** Append-only consumption log row (delta is signed: negative = consumed). */
+/**
+ * Append-only consumption log row. `deltaPercent` is signed as old − new
+ * (docs/IMPLEMENTATION_PLAN.md §12): positive = points consumed, negative =
+ * upward correction/restoration (e.g. 100 → 75 logs +25; 0 → 50 logs −50).
+ */
 export interface ConsumptionEvent {
   id: string;
   fridgeItemId: string;

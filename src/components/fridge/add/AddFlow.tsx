@@ -119,7 +119,9 @@ export function AddFlow({
         hidden={mode !== "scan"}
         className="pt-6"
       >
-        <ScanPanel onManualHandoff={goToManual} />
+        {/* `active` pauses the camera while another tab is selected — the
+            panel stays mounted, but a hidden tab must never keep decoding. */}
+        <ScanPanel active={mode === "scan"} onManualHandoff={goToManual} />
       </div>
       <div
         role="tabpanel"

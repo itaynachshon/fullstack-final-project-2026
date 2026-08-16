@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/components/ui/utils";
 import { createManualProduct } from "@/lib/actions/products";
-import { classifyBarcode } from "@/lib/fridge/barcode";
+import { classifyBarcode } from "@/lib/barcode";
 import { CATEGORIES } from "@/lib/types";
 import type { Category, Product } from "@/lib/types";
 

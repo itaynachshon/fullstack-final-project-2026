@@ -260,9 +260,10 @@ export interface ActivityEntry {
 }
 
 /**
- * Humanizes raw consumption events. Negative delta = consumed, positive =
- * restored/corrected upward (the frozen signed-event convention). Zero-delta
- * rows (which the actions never write) are dropped as meaningless.
+ * Humanizes raw consumption events. Delta = old − new (the approved signed
+ * convention, docs/IMPLEMENTATION_PLAN.md §12): positive = points consumed,
+ * negative = restored/corrected upward. Zero-delta rows (which the actions
+ * never write) are dropped as meaningless.
  */
 export function deriveActivity(
   events: ActivityEvent[],
@@ -272,7 +273,7 @@ export function deriveActivity(
     .filter((event) => event.deltaPercent !== 0)
     .map((event) => ({
       id: event.id,
-      direction: (event.deltaPercent < 0
+      direction: (event.deltaPercent > 0
         ? "consumed"
         : "restored") as ActivityDirection,
       productName: event.productName,

@@ -141,11 +141,13 @@ function eventCall() {
 }
 
 describe("setRemaining", () => {
+  // Approved sign convention (docs/IMPLEMENTATION_PLAN.md §12): delta =
+  // old − new, so consuming logs a POSITIVE delta (points consumed).
   it.each([
-    { from: 100, to: 75 as const, delta: -25 },
-    { from: 75, to: 50 as const, delta: -25 },
-    { from: 50, to: 25 as const, delta: -25 },
-    { from: 25, to: 0 as const, delta: -25 },
+    { from: 100, to: 75 as const, delta: 25 },
+    { from: 75, to: 50 as const, delta: 25 },
+    { from: 50, to: 25 as const, delta: 25 },
+    { from: 25, to: 0 as const, delta: 25 },
   ])(
     "$from → $to writes delta $delta with remaining_after $to",
     async ({ from, to, delta }) => {
@@ -191,8 +193,9 @@ describe("setRemaining", () => {
     const update = updateCall()?.values as Record<string, unknown>;
     expect(update.remaining_percent).toBe(50);
     expect(update.finished_at).toBeNull();
+    // Upward correction = negative delta (a restoration event, plan §12).
     expect(eventCall()?.values).toMatchObject({
-      delta_percent: 50,
+      delta_percent: -50,
       remaining_after: 50,
     });
   });
