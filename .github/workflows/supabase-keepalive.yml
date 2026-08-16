@@ -1,0 +1,62 @@
+# Prevents the free-plan Supabase project from pausing for inactivity during
+# the grading window (free projects pause after ~7 days without database
+# activity — https://supabase.com/docs/guides/platform/free-project-pausing).
+#
+# The ping is an ordinary authenticated request: a password sign-in with a
+# dedicated test user followed by a 1-row catalog read. No service-role key
+# is involved. Until the four secrets below are configured the job is a
+# harmless no-op, so the schedule can stay enabled from day one.
+#
+# Required repository secrets:
+#   KEEPALIVE_SUPABASE_URL      — https://<project-ref>.supabase.co
+#   KEEPALIVE_SUPABASE_ANON_KEY — the project's public anon key
+#   KEEPALIVE_EMAIL             — a dedicated test user (e.g. E2E user A)
+#   KEEPALIVE_PASSWORD          — that user's password
+name: Supabase keep-alive
+
+on:
+  schedule:
+    # Mondays and Thursdays, 06:17 UTC — well inside the 7-day window even
+    # if GitHub skips one scheduled run.
+    - cron: "17 6 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: none
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: ${{ secrets.KEEPALIVE_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.KEEPALIVE_SUPABASE_ANON_KEY }}
+      KEEPALIVE_EMAIL: ${{ secrets.KEEPALIVE_EMAIL }}
+      KEEPALIVE_PASSWORD: ${{ secrets.KEEPALIVE_PASSWORD }}
+    steps:
+      - name: Authenticated catalog ping
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ] || [ -z "$KEEPALIVE_EMAIL" ] || [ -z "$KEEPALIVE_PASSWORD" ]; then
+            echo "Keep-alive secrets not configured — skipping (no-op)."
+            exit 0
+          fi
+
+          # Sign in as the dedicated test user (counts as database activity).
+          access_token=$(
+            curl -sSf -X POST "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"$KEEPALIVE_EMAIL\",\"password\":\"$KEEPALIVE_PASSWORD\"}" \
+            | jq -r '.access_token'
+          )
+          if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+            echo "Sign-in failed — check keep-alive secrets." >&2
+            exit 1
+          fi
+
+          # One harmless 1-row catalog read through the normal Data API.
+          curl -sSf -o /dev/null \
+            "$SUPABASE_URL/rest/v1/products?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $access_token"
+          echo "Keep-alive ping OK."

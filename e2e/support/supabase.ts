@@ -22,7 +22,11 @@ export async function loginThroughUi(page: Page, credentials: TestCredentials) {
   await page.getByLabel("Password").fill(credentials.password);
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/fridge$/);
-  await expect(page.getByRole("heading", { name: "Fridge" })).toBeVisible();
+  // exact: an empty fridge also renders the "Your fridge is empty" heading,
+  // which substring-matches { name: "Fridge" } and trips strict mode.
+  await expect(
+    page.getByRole("heading", { name: "Fridge", exact: true }),
+  ).toBeVisible();
 }
 
 /**

@@ -41,7 +41,9 @@ describe("fetchOffProduct — request mechanics", () => {
     expect(url).toBe(
       `https://world.openfoodfacts.org/api/v2/product/${BAMBA}?fields=code,product_name,product_name_he,brands,quantity,image_front_url`,
     );
-    expect(new Headers(init.headers).get("User-Agent")).toMatch(/FridgeTracker/);
+    expect(new Headers(init.headers).get("User-Agent")).toMatch(
+      /FridgeTracker/,
+    );
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(init.cache).toBe("no-store");
   });
@@ -75,7 +77,10 @@ describe("fetchOffProduct — mapping found products", () => {
 
   it("falls back to the generic name when no Hebrew name exists, and nulls missing fields", async () => {
     stubFetchOnce(
-      jsonResponse({ status: 1, product: { product_name: "  Yotvata Choco  " } }),
+      jsonResponse({
+        status: 1,
+        product: { product_name: "  Yotvata Choco  " },
+      }),
     );
 
     expect(await fetchOffProduct(BAMBA)).toEqual({
@@ -121,7 +126,9 @@ describe("fetchOffProduct — mapping found products", () => {
 
 describe("fetchOffProduct — miss and failure semantics", () => {
   it("maps HTTP 404 to a definitive not_found", async () => {
-    stubFetchOnce(jsonResponse({ status: 0, status_verbose: "product not found" }, 404));
+    stubFetchOnce(
+      jsonResponse({ status: 0, status_verbose: "product not found" }, 404),
+    );
     expect(await fetchOffProduct(BAMBA)).toEqual({ outcome: "not_found" });
   });
 
@@ -139,9 +146,12 @@ describe("fetchOffProduct — miss and failure semantics", () => {
   });
 
   it("maps a network error to a network failure", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new TypeError("fetch failed");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
     expect(await fetchOffProduct(BAMBA)).toEqual({
       outcome: "failure",
       reason: "network",
@@ -152,14 +162,21 @@ describe("fetchOffProduct — miss and failure semantics", () => {
     vi.useFakeTimers();
     // A fetch that never resolves but honors its AbortSignal, like a stalled
     // upstream. Node rejects aborts with a DOMException (name AbortError).
-    vi.stubGlobal("fetch", vi.fn(
-      (_url: string, init: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          init.signal?.addEventListener("abort", () =>
-            reject(Object.assign(new Error("This operation was aborted"), { name: "AbortError" })),
-          );
-        }),
-    ));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () =>
+              reject(
+                Object.assign(new Error("This operation was aborted"), {
+                  name: "AbortError",
+                }),
+              ),
+            );
+          }),
+      ),
+    );
 
     const pending = fetchOffProduct(BAMBA);
     await vi.advanceTimersByTimeAsync(OFF_TIMEOUT_MS);
@@ -168,7 +185,9 @@ describe("fetchOffProduct — miss and failure semantics", () => {
   });
 
   it("maps unparseable JSON to an invalid_response failure", async () => {
-    stubFetchOnce(new Response("<html>definitely not json</html>", { status: 200 }));
+    stubFetchOnce(
+      new Response("<html>definitely not json</html>", { status: 200 }),
+    );
     expect(await fetchOffProduct(BAMBA)).toEqual({
       outcome: "failure",
       reason: "invalid_response",

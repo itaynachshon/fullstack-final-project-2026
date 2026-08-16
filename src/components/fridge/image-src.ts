@@ -28,7 +28,8 @@ export function renderableImageSrc(imageUrl: string | null): string | null {
   } catch {
     return null;
   }
-  return parsed.protocol === "https:" && ALLOWED_IMAGE_HOSTS.includes(parsed.hostname)
+  return parsed.protocol === "https:" &&
+    ALLOWED_IMAGE_HOSTS.includes(parsed.hostname)
     ? imageUrl
     : null;
 }

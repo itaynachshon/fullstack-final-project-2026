@@ -3,10 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { SignOutIconButton } from "@/components/app-shell/SignOutIconButton";
-import {
-  CircleCheckIcon,
-  RefrigeratorIcon,
-} from "@/components/icons";
+import { CircleCheckIcon, RefrigeratorIcon } from "@/components/icons";
 import { EmptyState } from "@/components/fridge/EmptyState";
 import { FridgeFilters } from "@/components/fridge/FridgeFilters";
 import { FridgeProductCard } from "@/components/fridge/FridgeProductCard";
@@ -87,7 +84,9 @@ export default async function FridgePage({
             <EmptyState
               icon={CircleCheckIcon}
               title={
-                filter === "low" ? "Nothing's running low" : "Nothing finished lately"
+                filter === "low"
+                  ? "Nothing's running low"
+                  : "Nothing finished lately"
               }
               body={
                 filter === "low"

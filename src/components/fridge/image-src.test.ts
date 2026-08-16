@@ -15,7 +15,10 @@ describe("renderableImageSrc", () => {
 
   it.each([
     ["a foreign host", "https://evil.example/tracker.png"],
-    ["a lookalike subdomain", "https://images.openfoodfacts.org.evil.example/x.png"],
+    [
+      "a lookalike subdomain",
+      "https://images.openfoodfacts.org.evil.example/x.png",
+    ],
     ["plain http on the right host", "http://images.openfoodfacts.org/x.jpg"],
     ["a javascript: URL", "javascript:alert(1)"],
     ["a data: URL", "data:image/svg+xml,<svg/>"],

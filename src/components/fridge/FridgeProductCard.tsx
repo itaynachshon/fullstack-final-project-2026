@@ -56,8 +56,7 @@ export function FridgeProductCard({
           ? {
               ...unit,
               remainingPercent: change.level,
-              finishedAt:
-                change.level === 0 ? new Date().toISOString() : null,
+              finishedAt: change.level === 0 ? new Date().toISOString() : null,
             }
           : unit,
       ),
@@ -101,7 +100,10 @@ export function FridgeProductCard({
       if (options?.isUndo) return;
       const undo = {
         label: "Undo",
-        onClick: () => performSetLevel({ ...unit, remainingPercent: level }, previousLevel, { isUndo: true }),
+        onClick: () =>
+          performSetLevel({ ...unit, remainingPercent: level }, previousLevel, {
+            isUndo: true,
+          }),
       };
       toast(
         level === 0
@@ -163,10 +165,7 @@ export function FridgeProductCard({
           />
         ))}
         {restockUnit ? (
-          <RestockButton
-            itemId={restockUnit.id}
-            productName={product.name}
-          />
+          <RestockButton itemId={restockUnit.id} productName={product.name} />
         ) : null}
       </ProductCard>
 

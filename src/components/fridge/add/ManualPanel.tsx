@@ -144,11 +144,7 @@ export function ManualPanel({
   return (
     <>
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
-        <Field
-          id="mf-name"
-          label="Product name"
-          error={errors.name}
-        >
+        <Field id="mf-name" label="Product name" error={errors.name}>
           <Input
             id="mf-name"
             dir="auto"
@@ -190,9 +186,7 @@ export function ManualPanel({
             value={packageSize}
             onChange={(event) => setPackageSize(event.target.value)}
             aria-invalid={errors.packageSize ? true : undefined}
-            aria-describedby={
-              errors.packageSize ? "mf-size-error" : undefined
-            }
+            aria-describedby={errors.packageSize ? "mf-size-error" : undefined}
           />
         </Field>
 
@@ -213,7 +207,7 @@ export function ManualPanel({
                   aria-checked={selected}
                   onClick={() => setCategory(option)}
                   className={cn(
-                    "inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none",
+                    "inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none",
                     selected
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border bg-card text-foreground hover:bg-accent",
@@ -249,9 +243,7 @@ export function ManualPanel({
                 setErrors((e) => ({ ...e, barcode: undefined }));
             }}
             aria-invalid={errors.barcode ? true : undefined}
-            aria-describedby={
-              errors.barcode ? "mf-barcode-error" : undefined
-            }
+            aria-describedby={errors.barcode ? "mf-barcode-error" : undefined}
           />
         </Field>
 

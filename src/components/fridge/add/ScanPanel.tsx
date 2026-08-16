@@ -285,7 +285,12 @@ export function ScanPanel({
               >
                 Add details manually
               </Button>
-              <Button variant="ghost" size="lg" className="w-full" onClick={dismiss}>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="w-full"
+                onClick={dismiss}
+              >
                 Scan again
               </Button>
             </div>
@@ -312,7 +317,12 @@ export function ScanPanel({
               >
                 Add manually
               </Button>
-              <Button variant="ghost" size="lg" className="w-full" onClick={dismiss}>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="w-full"
+                onClick={dismiss}
+              >
                 Scan again
               </Button>
             </div>

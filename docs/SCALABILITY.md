@@ -224,8 +224,9 @@ connections, so serverless instance fan-out does not exhaust `max_connections`
 (the classic serverless+Postgres failure mode is designed out). Free-tier
 realities that actually matter here: 500 MB database (years of headroom, §4),
 **projects pause after ~1 week of inactivity** — operationally relevant for a
-university demo (visit the app before presenting, or keep the project warm),
-and no production SLA. A paid tier removes the pause and raises limits; no
+university demo; Wave 5 added `.github/workflows/supabase-keepalive.yml`,
+a twice-weekly authenticated 1-row ping that keeps the project warm during
+the grading window — and no production SLA. A paid tier removes the pause and raises limits; no
 production-scale guarantees are claimed from the free tier.
 
 ## 13. Regional latency
@@ -234,8 +235,9 @@ Plan: Supabase in EU (Frankfurt), reasonably close to Israeli users. The
 browser→Vercel leg is edge-routed; the function→database leg is the one that
 multiplies (every page render does at least one DB round trip), so the Vercel
 function region should be pinned to Frankfurt (`fra1`) rather than the US
-default — a configuration step for the deployment wave, not an architecture
-change. OFF (European infrastructure) adds its latency only on cache misses.
+default — implemented in Wave 5 via the committed `vercel.json`
+(`"regions": ["fra1"]`; single-region selection is supported on the Hobby
+plan). OFF (European infrastructure) adds its latency only on cache misses.
 Multi-region replication is out of scope and unnecessary for one small region.
 
 ## 14. Query/index verification performed — and what is pending

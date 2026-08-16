@@ -4,7 +4,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { configureSelfHostedZXing, ZXING_WASM_PUBLIC_PATH } from "./zxing-config";
+import {
+  configureSelfHostedZXing,
+  ZXING_WASM_PUBLIC_PATH,
+} from "./zxing-config";
 
 /**
  * Self-hosted WASM guarantees (docs/TECHNICAL_DESIGN.md §9.3). The public

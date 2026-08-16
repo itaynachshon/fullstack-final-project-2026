@@ -30,7 +30,10 @@ const CATALOG_ROW: ProductRow = {
 
 const USER_ID = "99999999-9999-9999-9999-999999999999";
 
-type QueryResult<T> = { data: T; error: { code?: string; message: string } | null };
+type QueryResult<T> = {
+  data: T;
+  error: { code?: string; message: string } | null;
+};
 
 /**
  * Minimal stand-in for the two PostgREST call shapes the service uses:
@@ -61,7 +64,9 @@ function fakeSupabase(config: {
         }),
         insert: (payload: Record<string, unknown>) => {
           calls.inserts.push(payload);
-          return { select: () => ({ single: async () => config.insertResult }) };
+          return {
+            select: () => ({ single: async () => config.insertResult }),
+          };
         },
       };
     },
@@ -140,7 +145,12 @@ describe("lookupProduct — OFF fallback and cache write", () => {
     });
     offMock.mockResolvedValue({
       outcome: "found",
-      product: { name: "במבה", brand: "אסם", packageSize: "80 גרם", imageUrl: null },
+      product: {
+        name: "במבה",
+        brand: "אסם",
+        packageSize: "80 גרם",
+        imageUrl: null,
+      },
     });
 
     const result = await lookupProduct(client, USER_ID, BAMBA);
@@ -178,7 +188,10 @@ describe("lookupProduct — OFF fallback and cache write", () => {
       ],
       insertResult: {
         data: null,
-        error: { code: "23505", message: "duplicate key value violates unique constraint" },
+        error: {
+          code: "23505",
+          message: "duplicate key value violates unique constraint",
+        },
       },
     });
     offMock.mockResolvedValue({
@@ -197,7 +210,9 @@ describe("lookupProduct — OFF fallback and cache write", () => {
   });
 
   it("returns a plain not_found (no fallback flag) on a definitive OFF miss", async () => {
-    const { client } = fakeSupabase({ selectResults: [{ data: null, error: null }] });
+    const { client } = fakeSupabase({
+      selectResults: [{ data: null, error: null }],
+    });
     offMock.mockResolvedValue({ outcome: "not_found" });
 
     const result = await lookupProduct(client, USER_ID, BAMBA);
@@ -209,7 +224,9 @@ describe("lookupProduct — OFF fallback and cache write", () => {
   it.each(["timeout", "network", "upstream", "invalid_response"] as const)(
     "degrades an OFF %s failure to not_found with fallbackUsed",
     async (reason) => {
-      const { client } = fakeSupabase({ selectResults: [{ data: null, error: null }] });
+      const { client } = fakeSupabase({
+        selectResults: [{ data: null, error: null }],
+      });
       offMock.mockResolvedValue({ outcome: "failure", reason });
 
       const result = await lookupProduct(client, USER_ID, BAMBA);
@@ -238,7 +255,10 @@ describe("lookupProduct — our own DB failing is a real error", () => {
   it("throws when the cache insert fails for a non-conflict reason", async () => {
     const { client } = fakeSupabase({
       selectResults: [{ data: null, error: null }],
-      insertResult: { data: null, error: { code: "57014", message: "canceling statement" } },
+      insertResult: {
+        data: null,
+        error: { code: "57014", message: "canceling statement" },
+      },
     });
     offMock.mockResolvedValue({
       outcome: "found",

@@ -2,12 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { revalidatePath } from "next/cache";
 
-import {
-  addToFridge,
-  deleteItem,
-  restockItem,
-  setRemaining,
-} from "./fridge";
+import { addToFridge, deleteItem, restockItem, setRemaining } from "./fridge";
 import {
   createSupabaseStub,
   type ProgrammedResponse,
@@ -120,10 +115,18 @@ function setupItem({ current, finishedAt = null }: SetupOptions) {
       table: "fridge_items",
       op: "select",
       result: {
-        data: { id: ITEM_ID, remaining_percent: current, finished_at: finishedAt },
+        data: {
+          id: ITEM_ID,
+          remaining_percent: current,
+          finished_at: finishedAt,
+        },
       },
     },
-    { table: "fridge_items", op: "update", result: { data: [{ id: ITEM_ID }] } },
+    {
+      table: "fridge_items",
+      op: "update",
+      result: { data: [{ id: ITEM_ID }] },
+    },
     { table: "consumption_events", op: "insert", result: {} },
   ]);
 }
@@ -184,7 +187,10 @@ describe("setRemaining", () => {
   it("clears finished_at on an upward correction from zero (0 → 50)", async () => {
     setupItem({ current: 0, finishedAt: "2026-08-10T00:00:00Z" });
 
-    const result = await setRemaining({ itemId: ITEM_ID, remainingPercent: 50 });
+    const result = await setRemaining({
+      itemId: ITEM_ID,
+      remainingPercent: 50,
+    });
 
     expect(result).toEqual({
       ok: true,
@@ -203,7 +209,10 @@ describe("setRemaining", () => {
   it("re-tapping the current level is a successful no-op (no write, no event)", async () => {
     setupItem({ current: 50 });
 
-    const result = await setRemaining({ itemId: ITEM_ID, remainingPercent: 50 });
+    const result = await setRemaining({
+      itemId: ITEM_ID,
+      remainingPercent: 50,
+    });
 
     expect(result).toEqual({
       ok: true,
@@ -225,11 +234,12 @@ describe("setRemaining", () => {
   });
 
   it("reports foreign/missing items as not_found (RLS makes them invisible)", async () => {
-    authed([
-      { table: "fridge_items", op: "select", result: { data: null } },
-    ]);
+    authed([{ table: "fridge_items", op: "select", result: { data: null } }]);
 
-    const result = await setRemaining({ itemId: ITEM_ID, remainingPercent: 25 });
+    const result = await setRemaining({
+      itemId: ITEM_ID,
+      remainingPercent: 25,
+    });
     expect(result).toEqual({
       ok: false,
       error: expect.objectContaining({ code: "not_found" }),
@@ -245,17 +255,28 @@ describe("setRemaining", () => {
           data: { id: ITEM_ID, remaining_percent: 100, finished_at: null },
         },
       },
-      { table: "fridge_items", op: "update", result: { data: [{ id: ITEM_ID }] } },
+      {
+        table: "fridge_items",
+        op: "update",
+        result: { data: [{ id: ITEM_ID }] },
+      },
       {
         table: "consumption_events",
         op: "insert",
         result: { error: { message: "boom" } },
       },
       // The compensating revert:
-      { table: "fridge_items", op: "update", result: { data: [{ id: ITEM_ID }] } },
+      {
+        table: "fridge_items",
+        op: "update",
+        result: { data: [{ id: ITEM_ID }] },
+      },
     ]);
 
-    const result = await setRemaining({ itemId: ITEM_ID, remainingPercent: 75 });
+    const result = await setRemaining({
+      itemId: ITEM_ID,
+      remainingPercent: 75,
+    });
 
     expect(result).toEqual({
       ok: false,

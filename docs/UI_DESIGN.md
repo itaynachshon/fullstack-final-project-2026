@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Approved visual contract — binding for Wave 2 (Agents A/B/C) and Wave 3 implementation |
+| **Status** | Approved visual contract — implemented in Waves 2–3; verified in the Wave 5 four-viewport QA pass (no defects); kept as the visual reference |
 | **Date** | 2026-08-15 |
 | **Authority** | Subordinate to `docs/IMPLEMENTATION_PLAN.md` (scope, architecture, routes, data model). This document owns everything visual and interactive. Where the plan names a UX mechanism (e.g., "product-confirm sheet", plan §9), this document specifies it. |
 | **Inputs** | `docs/IMPLEMENTATION_PLAN.md`, `English-Assignment.md`, `Hebrew-Assignment.md`. (`PRODUCT_SPEC.md` / `ARCHITECTURE.md` / `TECHNICAL_DESIGN.md` were not yet written at authoring time; the plan is self-contained by its own declaration.) |

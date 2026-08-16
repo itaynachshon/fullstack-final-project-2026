@@ -45,7 +45,9 @@ function chunks<T>(items: T[], size: number): T[][] {
 try {
   process.loadEnvFile(".env.local");
 } catch {
-  die("no .env.local found — copy .env.example and fill in the Supabase values.");
+  die(
+    "no .env.local found — copy .env.example and fill in the Supabase values.",
+  );
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -107,14 +109,22 @@ async function main(): Promise<void> {
 
   /* ── which barcodes already exist? (idempotent re-runs) ── */
   const existing = new Set<string>();
-  for (const chunk of chunks(products.map((p) => p.barcode), CHUNK_SIZE)) {
-    const { data, error } = await supabase.from("products").select("barcode").in("barcode", chunk);
+  for (const chunk of chunks(
+    products.map((p) => p.barcode),
+    CHUNK_SIZE,
+  )) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("barcode")
+      .in("barcode", chunk);
     if (error) die(`reading existing barcodes: ${error.message}`);
     for (const row of data) existing.add(row.barcode as string);
   }
 
   const missing = products.filter((product) => !existing.has(product.barcode));
-  console.log(`${existing.size} already in the database, inserting ${missing.length}`);
+  console.log(
+    `${existing.size} already in the database, inserting ${missing.length}`,
+  );
 
   /* ── batch inserts, per-row fallback on an unexpected conflict ── */
   let inserted = 0;
@@ -124,7 +134,9 @@ async function main(): Promise<void> {
       inserted += chunk.length;
     } else if (error.code === UNIQUE_VIOLATION) {
       for (const product of chunk) {
-        const { error: rowError } = await supabase.from("products").insert(product);
+        const { error: rowError } = await supabase
+          .from("products")
+          .insert(product);
         if (!rowError) inserted++;
         else if (rowError.code !== UNIQUE_VIOLATION) {
           die(`inserting ${product.barcode}: ${rowError.message}`);
@@ -136,7 +148,9 @@ async function main(): Promise<void> {
     process.stdout.write(`\rinserted ${inserted}/${missing.length}`);
   }
 
-  console.log(`\nDone: ${inserted} inserted, ${existing.size} skipped (already present).`);
+  console.log(
+    `\nDone: ${inserted} inserted, ${existing.size} skipped (already present).`,
+  );
 }
 
 main().catch((error) => {

@@ -414,26 +414,30 @@ Proportionate to the assignment's "basic security" chapter; each item maps to a 
 
 ## 18. Assignment Compliance Matrix
 
-| # | Assignment requirement | Planned implementation | Status |
-|---|---|---|---|
-| 1 | Web product with real business value | Fridge Tracker: reduces food waste + shopping friction for Israeli households (product spec doc argues this) | Covered |
-| 2 | Product specification document | `docs/PRODUCT_SPEC.md` — problem, users, customer, business goals, capabilities, main processes (Wave 1) | Covered |
-| 3 | Architecture design: components, DB?, entities, pages, API routes/server actions, data flow, roles/permissions, external libraries + why | `docs/ARCHITECTURE.md` derived from §5–§11 of this plan; single-role model stated explicitly; library justifications from §9/§25 | Covered |
-| 4 | Detailed technical design: folders, components, DB structure, CRUD, API, business logic, state, errors, validation, UX | `docs/TECHNICAL_DESIGN.md` derived from §7–§12 (+ folder tree from Wave 1 scaffold) | Covered |
-| 5 | Implementation in Next.js + TypeScript | Next.js 16, TS strict | Covered |
-| 5 | Supabase for DB (auth optional) | Supabase Postgres + RLS + Supabase Auth | Covered |
-| 5 | Vercel deployment, public URL | §14 | Covered |
-| 6 | Test spec: features, invalid inputs, business processes, permissions, DB, edge cases, basic UI | `docs/TEST_SPEC.md` per §15 (permissions tests included — single role but per-user isolation is tested) | Covered |
-| 7 | Test implementation (Vitest/Jest/RTL/Playwright/manual) | Vitest + RTL + Playwright + documented manual camera checklist (§15) | Covered |
-| 8 | Scalability doc: dozens–hundreds of users, expensive queries, indexes, over-fetching, pagination, client/server separation, limits, future | `docs/SCALABILITY.md`: per-user data is small; catalog read-mostly with barcode-unique + trigram indexes; paginated search; RSC minimizes payloads; limits = Supabase Free/single region; future = email digest, second chain, materialized restock view | Covered |
-| 9 | Security doc: authn, authz, logged-in-only ops, cross-user protection, validation, API protection, secrets, remaining risks | `docs/SECURITY.md` per §17 | Covered |
-| 10 | Submission: app link, repo link, local setup instructions, env-vars explanation | README (Wave 5): setup incl. Supabase CLI + seed script + `.env.example` | Covered |
-| 11 | Agent use allowed; student must understand and be able to justify everything | This plan + `TECHNICAL_DESIGN.md` are the assignment-recommended "internal explainer"; every library choice has a recorded rationale (§25); small dependency surface by design | Covered |
-| 12 | 10–15 min presentation covering product, problem, users, value, architecture, DB, processes, tests, scalability, security, future work | `docs/presentation/` deck in Wave 5; §16 rehearsal kit | Covered |
-| — | "Small, clear, secure, well-built over big and unstable" | The entire §4 scope discipline; stretch list gated on MVP stability | Covered |
-| — | Docs written before code (stages 2–4 before 5) | Wave 1 produces the three design docs before/alongside the skeleton, strictly before feature code (Wave 2) | Covered — **keep this ordering during execution** |
+Re-audited in Wave 5 against the actual repository artifacts (not intentions):
 
-No requirement is currently in "Needs attention" state. The matrix must be re-audited in Wave 5 against the actual artifacts.
+| # | Assignment requirement | Actual artifact | Status (Wave 5 re-audit) |
+|---|---|---|---|
+| 1 | Web product with real business value | Working MVP: scan/search/manual add → per-unit consumption → restock list; argued in `docs/PRODUCT_SPEC.md` §1–§3 | Verified |
+| 2 | Product specification document | `docs/PRODUCT_SPEC.md` | Verified — exists, final |
+| 3 | Architecture design: components, DB?, entities, pages, API routes/server actions, data flow, roles/permissions, external libraries + why | `docs/ARCHITECTURE.md` (single-role model explicit; every library justified) | Verified — exists, drift-audited in Wave 5 |
+| 4 | Detailed technical design: folders, components, DB structure, CRUD, API, business logic, state, errors, validation, UX | `docs/TECHNICAL_DESIGN.md` | Verified — exists, matches implementation |
+| 5 | Implementation in Next.js + TypeScript | Next.js 16 App Router, TypeScript strict — `src/` | Verified |
+| 5 | Supabase for DB (auth optional) | Supabase Postgres + RLS + Supabase Auth — `supabase/migrations/` (3 migrations incl. Wave 5 hardening) | Verified |
+| 5 | Vercel deployment, public URL | `vercel.json` (fra1) + README deployment guide committed | **Pending student** — repo import + deploy needs the student's Vercel login (exact steps in README/handoff) |
+| 6 | Test spec: features, invalid inputs, business processes, permissions, DB, edge cases, basic UI | `docs/TEST_SPEC.md` incl. §15 evidence record | Verified |
+| 7 | Test implementation (Vitest/Jest/RTL/Playwright/manual) | 318 Vitest tests + 8 Playwright E2E (8/8 green on the local Supabase stack) + manual camera checklist (RTL proved unnecessary; E2E covers component behavior) | Verified |
+| 8 | Scalability doc: dozens–hundreds of users, expensive queries, indexes, over-fetching, pagination, client/server separation, limits, future | `docs/SCALABILITY.md` with measured EXPLAIN plans | Verified |
+| 9 | Security doc: authn, authz, logged-in-only ops, cross-user protection, validation, API protection, secrets, remaining risks | `docs/SECURITY.md` with the executed attack matrix + Wave 5 fixes | Verified |
+| 10 | Submission: app link, repo link, local setup instructions, env-vars explanation | README + `.env.example`; GitHub repo exists; app link pending the Vercel deploy (see row 5) | Setup/env/repo verified; **app link pending student deploy** |
+| 11 | Agent use allowed; student must understand and be able to justify everything | This plan + `TECHNICAL_DESIGN.md` + §25 rationale log; small dependency surface | Verified |
+| 12 | 10–15 min presentation covering product, problem, users, value, architecture, DB, processes, tests, scalability, security, future work | `docs/presentation/SLIDES.md` (11 slides) + `DEMO_SCRIPT.md` (timed, with fallbacks + barcode kit) | Verified — exists |
+| — | "Small, clear, secure, well-built over big and unstable" | §4 scope discipline held; no stretch feature was built | Verified |
+| — | Docs written before code (stages 2–4 before 5) | Wave 1 produced the design docs before feature code | Verified (historical ordering held) |
+
+The only "Pending" rows are the two that require the student's own hosted
+logins (Vercel deploy → public URL). Everything else exists in the repository
+and was re-checked in Wave 5.
 
 ---
 
@@ -501,6 +505,15 @@ Timeline anchors (deadline Sep 6; ~22 days total, ≥2 days buffer).
 
 - Final README (setup, env vars, seed instructions, demo barcode kit), Supabase keep-alive GitHub Action, presentation deck (10–15 min per assignment §12 list), compliance matrix re-audit against real artifacts, deploy freeze, submission package.
 - **Stretch window:** only if Wave 4 finished early — take items from §4.3 top-down.
+- **Executed (2026-08-16):** security-hardening migration (event-ownership RLS
+  fix + `image_url` CHECK) and explicit Data API grants migration; full
+  verification on a local Supabase stack (318 unit tests, 8/8 Playwright,
+  RLS matrix, 7,490-row seed, 4-viewport responsive QA); `vercel.json` fra1
+  region; keep-alive workflow (pause behavior re-verified against current
+  Supabase docs — still ~7 days on the Free plan, so the ping stays);
+  README/docs drift audit; presentation + demo script. Hosted
+  Supabase/Vercel connection awaits the student's dashboard logins; no
+  stretch item was started.
 
 ---
 

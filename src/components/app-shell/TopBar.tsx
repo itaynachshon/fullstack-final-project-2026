@@ -37,8 +37,7 @@ export function TopBar() {
 
         <nav aria-label="Main" className="flex items-center gap-1">
           {NAV_LINKS.map(({ href, label }) => {
-            const active =
-              pathname === href || pathname.startsWith(`${href}/`);
+            const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link
                 key={href}

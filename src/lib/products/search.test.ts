@@ -112,7 +112,10 @@ describe("searchProducts — response shaping", () => {
   });
 
   it("returns exactly PAGE_SIZE items with hasMore=true when the probe row exists", async () => {
-    const { client } = fakeSupabase({ data: makeRows(PAGE_SIZE + 1), error: null });
+    const { client } = fakeSupabase({
+      data: makeRows(PAGE_SIZE + 1),
+      error: null,
+    });
 
     const response = await searchProducts(client, "חלב", 1);
 
@@ -129,7 +132,10 @@ describe("searchProducts — response shaping", () => {
   });
 
   it("throws on a database error (route surfaces 500 'internal')", async () => {
-    const { client } = fakeSupabase({ data: null, error: { message: "timeout" } });
+    const { client } = fakeSupabase({
+      data: null,
+      error: { message: "timeout" },
+    });
 
     await expect(searchProducts(client, "חלב", 1)).rejects.toThrow(
       /products search failed/,

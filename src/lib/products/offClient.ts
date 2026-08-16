@@ -19,7 +19,8 @@
 import { z } from "zod";
 
 /** Distinguished internally; callers decide how to degrade. */
-export type OffFailureReason = "timeout" | "network" | "upstream" | "invalid_response";
+export type OffFailureReason =
+  "timeout" | "network" | "upstream" | "invalid_response";
 
 /** What the app actually uses from OFF — nothing else is requested or kept. */
 export interface OffProduct {
@@ -39,7 +40,8 @@ export const OFF_TIMEOUT_MS = 3000;
 const OFF_PRODUCT_URL = "https://world.openfoodfacts.org/api/v2/product/";
 
 /** Only the fields the app maps (docs/TECHNICAL_DESIGN.md §5.2). */
-const OFF_FIELDS = "code,product_name,product_name_he,brands,quantity,image_front_url";
+const OFF_FIELDS =
+  "code,product_name,product_name_he,brands,quantity,image_front_url";
 
 /** OFF API policy requires an identifying User-Agent: AppName/Version (contact). */
 const OFF_USER_AGENT =
@@ -110,7 +112,9 @@ function safeImageUrl(url: string | undefined): string | null {
  * 5xx and unusable payloads — is returned as a value so the lookup chain can
  * degrade deliberately.
  */
-export async function fetchOffProduct(canonicalBarcode: string): Promise<OffLookupResult> {
+export async function fetchOffProduct(
+  canonicalBarcode: string,
+): Promise<OffLookupResult> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OFF_TIMEOUT_MS);
 
@@ -150,7 +154,8 @@ export async function fetchOffProduct(canonicalBarcode: string): Promise<OffLook
     }
 
     const parsed = offResponseSchema.safeParse(payload);
-    if (!parsed.success) return { outcome: "failure", reason: "invalid_response" };
+    if (!parsed.success)
+      return { outcome: "failure", reason: "invalid_response" };
 
     // Some edge responses report a miss with 200 + status 0.
     if (Number(parsed.data.status) !== 1 || !parsed.data.product) {

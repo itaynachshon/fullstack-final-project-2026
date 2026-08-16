@@ -3,11 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { useToast } from "@/components/app-shell/Toaster";
-import {
-  CheckIcon,
-  LoaderCircleIcon,
-  RotateCcwIcon,
-} from "@/components/icons";
+import { CheckIcon, LoaderCircleIcon, RotateCcwIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { restockItem } from "@/lib/actions/fridge";
 

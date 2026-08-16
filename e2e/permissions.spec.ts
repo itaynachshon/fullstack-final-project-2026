@@ -149,6 +149,30 @@ test.describe("@rls ordinary-user database isolation", () => {
           remaining_after: 75,
         });
       expect(eventImpersonationError).not.toBeNull();
+
+      // Wave 5 hardening: even with their own user_id, User B may not log an
+      // event that references User A's fridge item (the INSERT policy now
+      // requires ownership of the referenced item, and a foreign item id
+      // fails the same way a nonexistent one does — no existence oracle).
+      const { error: crossItemEventError } = await clientB
+        .from("consumption_events")
+        .insert({
+          fridge_item_id: itemAId,
+          user_id: userBId,
+          delta_percent: 25,
+          remaining_after: 75,
+        });
+      expect(crossItemEventError).not.toBeNull();
+
+      const { error: nonexistentItemEventError } = await clientB
+        .from("consumption_events")
+        .insert({
+          fridge_item_id: "00000000-0000-4000-8000-000000000000",
+          user_id: userBId,
+          delta_percent: 25,
+          remaining_after: 75,
+        });
+      expect(nonexistentItemEventError).not.toBeNull();
     } finally {
       if (itemAId) {
         const { error } = await clientA

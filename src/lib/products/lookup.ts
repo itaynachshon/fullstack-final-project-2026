@@ -91,7 +91,11 @@ export async function lookupProduct(
     .single();
 
   if (!error) {
-    return { status: "found", product: toProduct(inserted as ProductRow), source: "off" };
+    return {
+      status: "found",
+      product: toProduct(inserted as ProductRow),
+      source: "off",
+    };
   }
 
   if (error.code === UNIQUE_VIOLATION) {
@@ -105,7 +109,9 @@ export async function lookupProduct(
   }
 
   // Our own database misbehaving is genuinely exceptional (§5.3 last row).
-  throw new Error(`products cache insert failed for ${canonical}: ${error.message}`);
+  throw new Error(
+    `products cache insert failed for ${canonical}: ${error.message}`,
+  );
 }
 
 async function selectByBarcode(
@@ -119,7 +125,9 @@ async function selectByBarcode(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`products lookup failed for ${canonical}: ${error.message}`);
+    throw new Error(
+      `products lookup failed for ${canonical}: ${error.message}`,
+    );
   }
   return (data as ProductRow | null) ?? null;
 }

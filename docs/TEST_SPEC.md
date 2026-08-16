@@ -4,7 +4,7 @@
 |---|---|
 | **Course** | Internet Technologies — Become a Full-Stack Engineer (RUNI CS 2026) |
 | **Document role** | Assignment stage 6 — formal test specification |
-| **Application state** | Wave 3 integrated MVP; this document reflects the implemented repository, not only the earlier plan |
+| **Application state** | Final (Wave 5) submission state; this document reflects the implemented repository, not only the earlier plan |
 | **Date** | 2026-08-16 |
 | **Automated tools actually used** | Vitest 4 and Playwright 1 (Chromium) |
 
@@ -340,22 +340,22 @@ Before submission:
 
 Evidence must distinguish execution from preparation.
 
-| Check | Result at 2026-08-16 | Evidence |
+| Check | Result at 2026-08-16 (Wave 5) | Evidence |
 |---|---|---|
 | ESLint | Passed | `npm run lint` |
 | TypeScript | Passed | `npm run typecheck` |
 | Vitest | Passed — 318/318, 16 files | `npm test` |
 | Production build | Passed | `npm run build` |
 | Playwright public | Passed — 3/3 | `npm run test:e2e:public` |
-| Playwright full suite | 3 passed, 5 skipped | Missing Supabase/test-user environment |
-| Runtime RLS | Not executed | User A/User B credentials unavailable |
+| Playwright full suite | **Passed — 8/8** | `npm run test:e2e` against a local Supabase stack (`supabase start`, full migration chain, seeded catalog, dedicated users A/B) |
+| Runtime RLS | **Executed — all attacks blocked** (incl. the Wave 5 event-ownership fix) | `e2e/permissions.spec.ts` + hand-crafted PostgREST calls on the local stack; hosted re-run pending the student's project |
 | Physical camera | Pending manual execution | No device test performed |
-| Responsive visual QA | Pending manual execution | No final viewport pass performed |
-| Production smoke | Pending deployment | No Vercel URL available |
+| Responsive visual QA | **Executed — no defects** | 390×844 / 430×932 / 768×1024 / 1440×900, authenticated, screenshot + overflow audit of /fridge, /add (all tabs), /restock, sheets/dialogs/toasts/focus |
+| Production smoke | Pending deployment | No Vercel URL available yet |
 
 ## 16. Known Testing Limitations
 
-- No Supabase project or dedicated test users were available during Wave 4 authoring, so authenticated UI and runtime RLS tests are prepared but not claimed as passed.
+- Wave 5 executed the authenticated UI and runtime RLS suites against a full local Supabase stack (Docker) with dedicated test users; the one remaining environment gap is a re-run against the student's hosted Supabase project, which is a mechanical repeat once credentials exist.
 - No physical iPhone or Android camera test has been performed.
 - No Vercel production deployment smoke has been performed.
 - Chromium is the only automated browser.

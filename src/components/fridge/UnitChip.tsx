@@ -34,7 +34,7 @@ export function UnitChip({
       aria-label={unitChipAriaLabel(unitNumber, level)}
       aria-haspopup="dialog"
       className={cn(
-        "inline-flex h-11 items-center gap-2 rounded-full border bg-card px-3 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none",
+        "inline-flex h-11 items-center gap-2 rounded-full border bg-card px-3 text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none",
         low ? "border-warning-foreground/40" : "border-border",
         finished ? "text-muted-foreground" : "text-foreground",
         pending ? "opacity-70" : "hover:border-ring/40",

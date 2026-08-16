@@ -48,9 +48,7 @@ export function AddFlow({
   const [prefill, setPrefill] = useState<ManualPrefill>(
     initialBarcode ? { barcode: initialBarcode, fromScan: true } : {},
   );
-  const [prefillVersion, setPrefillVersion] = useState(
-    initialBarcode ? 1 : 0,
-  );
+  const [prefillVersion, setPrefillVersion] = useState(initialBarcode ? 1 : 0);
   const tabRefs = useRef<Map<AddMode, HTMLButtonElement>>(new Map());
 
   function goToManual(next: ManualPrefill) {
@@ -98,7 +96,7 @@ export function AddFlow({
               tabIndex={selected ? 0 : -1}
               onClick={() => setMode(tabMode)}
               className={cn(
-                "flex items-center justify-center gap-2 rounded-sm text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+                "flex items-center justify-center gap-2 rounded-sm text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
                 selected
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",

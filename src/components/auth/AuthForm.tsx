@@ -56,7 +56,10 @@ export function AuthForm({ mode }: AuthFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    // method="post": if the form is ever submitted before hydration, the
+    // native fallback must not put the credentials in the URL/query string
+    // (the default form method is GET). Hydrated submits preventDefault.
+    <form method="post" onSubmit={handleSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-zinc-700">Email</span>
         <input

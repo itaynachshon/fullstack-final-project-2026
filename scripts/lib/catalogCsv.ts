@@ -9,7 +9,13 @@
  * Hebrew product names survive as plain UTF-8.
  */
 
-export const CSV_HEADER = ["barcode", "name", "brand", "package_size", "category"] as const;
+export const CSV_HEADER = [
+  "barcode",
+  "name",
+  "brand",
+  "package_size",
+  "category",
+] as const;
 
 /** One catalog product as persisted in the CSV. Empty string = NULL in the DB. */
 export interface SeedRow {

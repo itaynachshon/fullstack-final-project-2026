@@ -58,7 +58,10 @@ export async function GET(request: NextRequest) {
     // service). Details stay server-side (docs/TECHNICAL_DESIGN.md §11.1).
     console.error("[api/products/lookup]", error);
     const body: ApiErrorBody = {
-      error: { code: "internal", message: "Something went wrong. Please try again." },
+      error: {
+        code: "internal",
+        message: "Something went wrong. Please try again.",
+      },
     };
     return NextResponse.json(body, { status: 500 });
   }

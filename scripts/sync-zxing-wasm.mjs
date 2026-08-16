@@ -56,7 +56,10 @@ if (sha256(sourceBytes) !== sha256(targetBytes)) {
 }
 
 const { version } = JSON.parse(
-  await readFile(join(root, "node_modules", "zxing-wasm", "package.json"), "utf8"),
+  await readFile(
+    join(root, "node_modules", "zxing-wasm", "package.json"),
+    "utf8",
+  ),
 );
 console.log(
   `sync-zxing-wasm: public/wasm/zxing_reader.wasm ← zxing-wasm@${version} (${(targetBytes.length / 1024).toFixed(0)} KiB, sha256 ${sha256(targetBytes).slice(0, 12)}…)`,

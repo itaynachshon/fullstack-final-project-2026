@@ -17,11 +17,12 @@ export function FridgeFilters({
   current: FridgeFilter;
   summary: FridgeSummary;
 }) {
-  const pills: Array<{ filter: FridgeFilter; label: string; count?: number }> = [
-    { filter: "all", label: "All" },
-    { filter: "low", label: "Low", count: summary.low },
-    { filter: "finished", label: "Finished", count: summary.finished },
-  ];
+  const pills: Array<{ filter: FridgeFilter; label: string; count?: number }> =
+    [
+      { filter: "all", label: "All" },
+      { filter: "low", label: "Low", count: summary.low },
+      { filter: "finished", label: "Finished", count: summary.finished },
+    ];
 
   return (
     <nav aria-label="Filter fridge items" className="flex flex-wrap gap-x-2">

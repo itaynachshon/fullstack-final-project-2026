@@ -72,12 +72,11 @@ test.describe("@supabase authenticated MVP journeys", () => {
       ).toBeVisible();
 
       // The approved query hides a finished product while another live unit
-      // of that product remains.
+      // of that product remains. Assert only on this test's product — the
+      // shared test account may legitimately have other recently-finished
+      // items, so the section-wide empty state is not this test's to claim.
       await page.goto("/restock");
       let finishedSection = sectionNamed(page, "Recently finished");
-      await expect(
-        finishedSection.getByText("Nothing finished lately"),
-      ).toBeVisible();
       await expect(
         finishedSection.getByRole("button", {
           name: `Restock ${productName}`,
@@ -91,6 +90,12 @@ test.describe("@supabase authenticated MVP journeys", () => {
         .getByRole("button", { name: "Unit 1 — full. Change level." })
         .click();
       await page.getByRole("radio", { name: /Finished — all gone/ }).click();
+      // Wait for the mutation to commit before navigating away; the earlier
+      // full-page navigations unmounted the first finish toast, so this text
+      // is unambiguous again.
+      await expect(
+        page.getByText(`${productName} finished — it's on your Restock list`),
+      ).toBeVisible();
 
       await page.goto("/restock");
       finishedSection = sectionNamed(page, "Recently finished");
@@ -139,7 +144,11 @@ test.describe("@supabase authenticated MVP journeys", () => {
 
     await barcode.fill("2000000000008");
     await page.getByRole("button", { name: "Look up" }).click();
-    await expect(page.getByText("Looks like a weighed item")).toBeVisible();
+    // Heading role: the same text also exists in an sr-only live region
+    // (screen-reader announcement), so a bare getByText is ambiguous.
+    await expect(
+      page.getByRole("heading", { name: "Looks like a weighed item" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Add manually" }).click();
 
     await expect(page.getByRole("tab", { name: "Manual" })).toHaveAttribute(

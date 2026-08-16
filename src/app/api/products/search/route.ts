@@ -57,7 +57,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("[api/products/search]", error);
     const body: ApiErrorBody = {
-      error: { code: "internal", message: "Something went wrong. Please try again." },
+      error: {
+        code: "internal",
+        message: "Something went wrong. Please try again.",
+      },
     };
     return NextResponse.json(body, { status: 500 });
   }

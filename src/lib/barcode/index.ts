@@ -58,7 +58,8 @@ function computeCheckDigit(body: string): number {
 
 function hasValidCheckDigit(digits: string): boolean {
   return (
-    computeCheckDigit(digits.slice(0, -1)) === digits.charCodeAt(digits.length - 1) - 48
+    computeCheckDigit(digits.slice(0, -1)) ===
+    digits.charCodeAt(digits.length - 1) - 48
   );
 }
 
@@ -73,7 +74,10 @@ function hasValidCheckDigit(digits: string): boolean {
 export function isValidGtin(code: string): boolean {
   return (
     DIGITS_ONLY.test(code) &&
-    (code.length === 8 || code.length === 12 || code.length === 13 || code.length === 14) &&
+    (code.length === 8 ||
+      code.length === 12 ||
+      code.length === 13 ||
+      code.length === 14) &&
     hasValidCheckDigit(code)
   );
 }
@@ -137,7 +141,10 @@ export function classifyBarcode(raw: string): BarcodeClassification {
     return { kind: "invalid", reason: "Empty barcode." };
   }
   if (!DIGITS_ONLY.test(stripped)) {
-    return { kind: "invalid", reason: "Not a barcode: it must contain digits only." };
+    return {
+      kind: "invalid",
+      reason: "Not a barcode: it must contain digits only.",
+    };
   }
   if (stripped.length < MIN_LENGTH || stripped.length > MAX_LENGTH) {
     return {

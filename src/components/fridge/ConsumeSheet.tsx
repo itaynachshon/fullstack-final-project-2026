@@ -69,7 +69,7 @@ export function ConsumeSheet({
       >
         {unit && (
           <>
-            <p dir="auto" className="text-base font-medium leading-snug">
+            <p dir="auto" className="text-base leading-snug font-medium">
               {productName}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -100,7 +100,7 @@ export function ConsumeSheet({
             <button
               type="button"
               onClick={() => setConfirmingDelete(true)}
-              className="mt-3 flex h-13 w-full items-center gap-2 rounded-xl border px-4 text-sm font-medium text-destructive outline-none transition-colors duration-150 hover:bg-destructive/8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
+              className="mt-3 flex h-13 w-full items-center gap-2 rounded-xl border px-4 text-sm font-medium text-destructive transition-colors duration-150 outline-none hover:bg-destructive/8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
             >
               <Trash2Icon className="size-4" />
               Remove this unit
@@ -162,7 +162,7 @@ function LevelRow({
       className={cn(
         // ring-inset: the row sits inside an overflow-hidden rounded group,
         // so an offset ring would be clipped.
-        "flex h-13 w-full items-center gap-3 border-b px-4 text-start outline-none transition-colors duration-150 last:border-b-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
+        "flex h-13 w-full items-center gap-3 border-b px-4 text-start transition-colors duration-150 outline-none last:border-b-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset motion-reduce:transition-none",
         current ? "bg-accent" : "hover:bg-accent/60",
         finished && "text-muted-foreground",
       )}

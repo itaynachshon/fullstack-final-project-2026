@@ -3,7 +3,8 @@
 This document describes the security model of the **implemented** application:
 what protects each layer, what was verified and how, which risks are accepted
 for the MVP, and what a production deployment should add. It audits the actual
-Wave 3 code and migration SQL, not the design documents.
+final code and migration SQL (through the Wave 5 hardening migrations), not
+the design documents.
 
 Claims are classified three ways throughout:
 
@@ -14,11 +15,13 @@ Claims are classified three ways throughout:
 | **Production recommendation** | Not implemented; what we would add before serious production use |
 
 **Verification status in one sentence:** every RLS policy and attack scenario
-below was executed empirically against the real migration and the real 7,490-row
-catalog in a local Postgres 16 container that emulates Supabase's RLS execution
-model (same SQL, same `anon`/`authenticated` roles, same `auth.uid()`
-mechanism); verification against the **hosted** Supabase project remains
-pending because no live project is provisioned yet (see §18).
+below was executed empirically twice — first (Wave 4) in a Postgres 16
+container emulating Supabase's RLS execution model, then (Wave 5) against a
+full local Supabase stack (`supabase start`: real Postgres + GoTrue +
+PostgREST) with two real authenticated users, the full migration chain
+including both hardening migrations, and the real 7,490-row catalog;
+re-running the matrix once against the student's **hosted** project remains
+the final pending step (see §18).
 
 ---
 
@@ -180,6 +183,13 @@ executes queries). Results:
 | 14 | Unauthenticated (anon role) read of all 3 tables | 0 / 0 / 0 rows | no policy targets `anon` |
 | 15 | Anon INSERT into products | error `42501` | no policy targets `anon` |
 
+Since Wave 5 the `anon` rows are blocked one layer earlier still: the
+`20260816000100_data_api_grants.sql` migration grants table privileges only to
+`authenticated` and `service_role` (required explicitly on Supabase projects
+created after mid-2026, which no longer auto-grant Data API privileges), so
+the `anon` role has **no table grants at all** — anonymous requests fail with
+`42501 permission denied` before RLS is even evaluated.
+
 Note the two distinct failure modes, which the server actions rely on:
 statements that *filter* rows (SELECT/UPDATE/DELETE) silently match nothing —
 the app reports "Item not found" — while statements that *create* rows
@@ -193,31 +203,35 @@ letting RLS scope them. So "forge someone else's user id" is not even
 expressible through the app's API; the matrix rows above attack the database
 layer directly, and it holds on its own.
 
-### One confirmed integrity gap — Accepted MVP risk
+### One confirmed integrity gap — found in Wave 4, **fixed in Wave 5**
 
-The `consumption_events` INSERT policy checks only `user_id = auth.uid()` — it
-does **not** verify that `fridge_item_id` references a fridge item the caller
-owns. Empirically confirmed against the real migration:
+The original `consumption_events` INSERT policy checked only
+`user_id = auth.uid()` — it did **not** verify that `fridge_item_id`
+references a fridge item the caller owns. Empirically confirmed against the
+Wave 1 migration:
 
-- B **can** insert an event with `user_id = B` but `fridge_item_id` = A's
+- B **could** insert an event with `user_id = B` but `fridge_item_id` = A's
   item UUID (`INSERT 0 1`). The FK to `fridge_items` passes because foreign
   keys are checked with table-owner rights, bypassing RLS.
-- Because the FK errors (`23503`) only for *nonexistent* UUIDs, this doubles
+- Because the FK errors (`23503`) only for *nonexistent* UUIDs, this doubled
   as a **UUID existence oracle**: an attacker who somehow obtained a candidate
   UUID could confirm whether it is a real fridge item.
 
-Measured impact is contained, also empirically: B still cannot read the
-referenced item (0 rows); A never sees the junk event (its `user_id` is B, so
+Measured impact was contained, also empirically: B still could not read the
+referenced item (0 rows); A never saw the junk event (its `user_id` is B, so
 A's activity feed excludes it); and when A deletes their item the cascade
-removes the junk row. The app itself never sends such a request — it is only
-reachable by hand-crafted PostgREST calls, requires guessing random v4 UUIDs,
-and pollutes only the attacker's own history.
+removes the junk row. The app itself never sends such a request — it was only
+reachable by hand-crafted PostgREST calls.
 
-**Production recommendation:** extend the INSERT policy with an ownership
-subquery — `fridge_item_id IN (SELECT id FROM fridge_items WHERE user_id =
-auth.uid())`. Not applied now because the Wave 1 migration is a frozen
-contract and the exploit yields no data access; it is the first schema change
-Wave 5 should batch.
+**The fix (implemented):** `supabase/migrations/20260816000000_security_hardening.sql`
+replaces the INSERT policy — an event row is accepted only when
+`user_id = auth.uid()` **and** an `EXISTS` subquery confirms the referenced
+`fridge_item_id` belongs to `auth.uid()`. Verified empirically on the local
+Supabase stack (real PostgREST + GoTrue, two real users) and regression-tested
+in `e2e/permissions.spec.ts`: the forged insert now fails with `42501`
+(indistinguishable from a nonexistent-item insert — the UUID oracle is closed
+at the policy layer before the FK is ever consulted), while the owner's normal
+consume flow still records events successfully.
 
 ## 6. Product catalog permissions
 
@@ -315,11 +329,12 @@ holds even against hand-crafted PostgREST requests. Key fields:
 | UUIDs | `z.uuid()` | FK + RLS ownership |
 | package size / brand | bounded optional strings | column is display-only text |
 
-One honest asymmetry: `image_url` has **no database-level length or format
-constraint** (Zod and the OFF client constrain it on the app path, and §11's
-render guard neutralizes hostile values on the way out). A CHECK constraint is
-a candidate for the same Wave 5 migration as the §5 policy fix —
-**production recommendation**, low urgency.
+The `image_url` asymmetry that Wave 4 flagged here is closed: the Wave 5
+hardening migration adds `products_image_url_allowed`, a CHECK constraint
+restricting `image_url` to `NULL` or `https://images.openfoodfacts.org/…`
+values (verified compatible with all 7,490 seeded rows, which carry no image
+URLs, and with the OFF cache path). §11's render guard remains in force as the
+second, independent layer.
 
 ## 10. SQL injection — risk limited by construction
 
@@ -363,7 +378,9 @@ with 10 unit tests): re-apply the same allow-list at render time — only
 `https://images.openfoodfacts.org/...` URLs are ever handed to `next/image`;
 anything else (foreign hosts, lookalike subdomains, `http:`, `javascript:`,
 `data:`, relative paths, garbage) silently degrades to the category-icon
-fallback that missing images already use.
+fallback that missing images already use. Since Wave 5 the same allow-list is
+also enforced *at write time* by the `products_image_url_allowed` CHECK
+constraint (§9), so a hostile URL can no longer even be stored.
 
 ## 12. Remote images — Implemented
 
@@ -485,7 +502,7 @@ Uniform policy, verified across all handlers and actions:
 
 ## 18. Security verification performed — exactly what ran
 
-**Empirical (executed for this document):**
+**Empirical — Wave 4 (original audit):**
 
 1. **Full RLS attack matrix** — §5's fifteen scenarios plus five
    constraint-backstop probes and the §5 gap demonstration, executed against
@@ -493,7 +510,7 @@ Uniform policy, verified across all handlers and actions:
    container emulating Supabase's execution model (`anon`/`authenticated`
    roles, JWT-claim-backed `auth.uid()`, PostgREST-style role switching).
    Every result matched the intended design except the documented
-   `consumption_events` gap, which is confirmed real.
+   `consumption_events` gap, which was confirmed real (and fixed in Wave 5).
 2. **Render-guard fix verification** — 10 new unit tests for
    `renderableImageSrc` (hostile hosts, lookalike subdomains, `javascript:`,
    `data:`, http-downgrade, garbage); full suite green (§11).
@@ -502,36 +519,53 @@ Uniform policy, verified across all handlers and actions:
    `src/`, no `dangerouslySetInnerHTML`, no raw SQL, no state-changing GET,
    no secret logging, all inputs Zod-parsed, all errors genericized.
 
+**Empirical — Wave 5 (re-verification on a real Supabase stack):**
+
+5. **Matrix re-run through the real Data API** — the §5 scenarios replayed as
+   hand-crafted PostgREST (`curl`) calls with two real authenticated users'
+   JWTs against a full local Supabase stack (`supabase start`) running the
+   complete migration chain. All blocked as designed.
+6. **The §5 fix verified both ways** — B's forged event insert referencing
+   A's item: `42501`; an insert referencing a nonexistent item: the same
+   `42501` (oracle closed); A's own normal consume path: succeeds. Also
+   regression-tested in `e2e/permissions.spec.ts` (Playwright, 8/8 suite
+   green).
+7. **Image CHECK constraint probed** — inserting `image_url` on a foreign
+   host: `23514` CHECK violation; `NULL` and
+   `https://images.openfoodfacts.org/…` values: accepted.
+8. **Auth-form fallback hardening** — the login/signup form now declares
+   `method="post"` so a pre-hydration native submit can never place
+   credentials in the URL/query string (found during Wave 5 responsive QA,
+   where a blocked-assets scenario made the GET fallback observable).
+
 **Pending (not claimed):**
 
-- Runtime RLS verification **against the hosted Supabase project** — pending
-  live provisioning (no `.env.local` in this environment). The local matrix
-  gives high confidence the frozen SQL behaves as designed, but §5's results
-  should be re-run once against production before the demo (Agent D's
-  permission tests cover this path).
+- One re-run of §5's matrix and the credentialed Playwright suite against the
+  student's **hosted** Supabase project once it is provisioned (the identical
+  migration chain and test tooling make this a mechanical re-run).
 - Vercel deployment env-var review on the real dashboard.
 
 ## 19. Findings summary
 
 **Implemented protections:** httpOnly cookie auth with server-validated
 sessions and route gating; RLS on every table as the single authorization
-layer (empirically tested); ownership pinned to server-side session in all
-mutations; three-layer input validation with database backstops; LIKE-escaped
-parameterized search; React-escaped rendering with zero raw-HTML sinks;
-double-constrained image URLs (config allow-list + render guard); server-only
-keyless OFF client with timeout and untrusted-response sanitization; local
-in-browser barcode decoding with self-hosted WASM; service-role key confined
-to the local seed path; POST-only origin-checked mutations; generic error
-surfaces.
+layer (empirically tested, twice); consumption-event inserts require ownership
+of the referenced fridge item (Wave 5 policy); explicit least-privilege Data
+API grants (`anon` has no table access at all); ownership pinned to
+server-side session in all mutations; three-layer input validation with
+database backstops; triple-constrained image URLs (config allow-list + render
+guard + DB CHECK); LIKE-escaped parameterized search; React-escaped rendering
+with zero raw-HTML sinks; server-only keyless OFF client with timeout and
+untrusted-response sanitization; local in-browser barcode decoding with
+self-hosted WASM; service-role key confined to the local seed path; POST-only
+origin-checked mutations; POST-declared auth forms (no pre-hydration
+credential-in-URL fallback); generic error surfaces.
 
 **Accepted MVP risks:** email confirmation disabled (demo reliability);
 no rate limiting on APIs or OFF-triggering lookups; shared user-created
-catalog is unmoderated; `consumption_events` INSERT does not verify
-`fridge_item_id` ownership (confirmed; contained); `image_url` lacks a
-database-level constraint (render-side neutralized).
+catalog is unmoderated.
 
 **Production recommendations:** enable email confirmation + SMTP + signup
 abuse protection; per-user/IP rate limiting and negative caching; catalog
-moderation or private custom products; Wave 5 migration batching the event
-INSERT ownership subquery and an `image_url` CHECK; re-run the §5 matrix and
-Agent D's permission suite against the hosted project before grading.
+moderation or private custom products; re-run the §5 matrix and the
+credentialed Playwright suite once against the hosted project before grading.

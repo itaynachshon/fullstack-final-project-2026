@@ -146,10 +146,7 @@ export async function createManualProduct(
 
 /* ─── Internals ───────────────────────────────────────────────────────────── */
 
-function validationError(
-  field: string,
-  message: string,
-): ActionResult<never> {
+function validationError(field: string, message: string): ActionResult<never> {
   return {
     ok: false,
     error: {

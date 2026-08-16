@@ -60,7 +60,10 @@ export function ProductImage({
       ) : (
         <CategoryIcon
           category={category}
-          className={cn("text-muted-foreground", size >= 64 ? "size-6" : "size-5")}
+          className={cn(
+            "text-muted-foreground",
+            size >= 64 ? "size-6" : "size-5",
+          )}
         />
       )}
     </div>

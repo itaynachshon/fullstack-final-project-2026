@@ -23,10 +23,7 @@ import { ProductImage } from "./ProductImage";
  */
 
 export type ProductCardVariant =
-  | "fridge"
-  | "search-result"
-  | "confirm"
-  | "restock";
+  "fridge" | "search-result" | "confirm" | "restock";
 
 type CardProduct = Pick<
   Product,
@@ -96,7 +93,7 @@ export function ProductCard({
     <p
       dir="auto"
       className={cn(
-        "text-base font-medium leading-snug",
+        "text-base leading-snug font-medium",
         NAME_CLAMP[variant],
         muted ? "text-muted-foreground" : "text-foreground",
       )}
@@ -136,7 +133,7 @@ export function ProductCard({
         type="button"
         onClick={onSelect}
         className={cn(
-          "flex min-h-14 w-full items-center gap-3 rounded-xl border bg-card p-3 text-start outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none",
+          "flex min-h-14 w-full items-center gap-3 rounded-xl border bg-card p-3 text-start transition-colors duration-150 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none",
           className,
         )}
       >

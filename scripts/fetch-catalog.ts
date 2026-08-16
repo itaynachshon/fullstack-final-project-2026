@@ -64,7 +64,9 @@ async function fetchOrDie(url: string): Promise<Response> {
  * and are HTML-attribute-escaped (&amp;). Newest = max filename timestamp.
  */
 function latestPriceFullUrl(listingHtml: string): string | null {
-  const matches = listingHtml.match(/https:\/\/[^"'\s]+\/PriceFull[^"'\s]+\.gz[^"'\s]*/g);
+  const matches = listingHtml.match(
+    /https:\/\/[^"'\s]+\/PriceFull[^"'\s]+\.gz[^"'\s]*/g,
+  );
   if (!matches) return null;
 
   let best: { url: string; stamp: string } | null = null;
@@ -87,7 +89,10 @@ const ENTITIES: Record<string, string> = {
 };
 
 function decodeEntities(text: string): string {
-  return text.replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (entity) => ENTITIES[entity]);
+  return text.replace(
+    /&(?:amp|lt|gt|quot|apos|#39);/g,
+    (entity) => ENTITIES[entity],
+  );
 }
 
 /** Text of a flat child element, e.g. tag(block, "ItemCode"). */
@@ -126,22 +131,36 @@ interface StoreStats {
   kept: number;
 }
 
-async function fetchStore(storeId: number, catalog: Map<string, SeedRow>): Promise<StoreStats> {
+async function fetchStore(
+  storeId: number,
+  catalog: Map<string, SeedRow>,
+): Promise<StoreStats> {
   const listingUrl = `${PORTAL}/FileObject/UpdateCategory?catID=2&storeId=${storeId}`;
   const listingHtml = await (await fetchOrDie(listingUrl)).text();
 
   const fileUrl = latestPriceFullUrl(listingHtml);
   if (!fileUrl) {
-    throw new Error(`no PriceFull link found on ${listingUrl} — portal layout changed?`);
+    throw new Error(
+      `no PriceFull link found on ${listingUrl} — portal layout changed?`,
+    );
   }
   console.log(`store ${storeId}: downloading ${fileUrl.split("?")[0]}`);
 
   const gz = Buffer.from(await (await fetchOrDie(fileUrl)).arrayBuffer());
   const xml = gunzipSync(gz).toString("utf8");
 
-  const stats: StoreStats = { storeId, total: 0, weighted: 0, badCode: 0, nameless: 0, kept: 0 };
+  const stats: StoreStats = {
+    storeId,
+    total: 0,
+    weighted: 0,
+    badCode: 0,
+    nameless: 0,
+    kept: 0,
+  };
 
-  for (const [, block] of xml.matchAll(/<Item(?:\s[^>]*)?>([\s\S]*?)<\/Item>/g)) {
+  for (const [, block] of xml.matchAll(
+    /<Item(?:\s[^>]*)?>([\s\S]*?)<\/Item>/g,
+  )) {
     stats.total++;
 
     if (tagText(block, "bIsWeighted") === "1") {
@@ -167,7 +186,10 @@ async function fetchStore(storeId: number, catalog: Map<string, SeedRow>): Promi
         barcode: classification.canonical,
         name: name.slice(0, MAX_NAME_LENGTH),
         brand,
-        package_size: formatPackageSize(tagText(block, "Quantity"), tagText(block, "UnitQty")),
+        package_size: formatPackageSize(
+          tagText(block, "Quantity"),
+          tagText(block, "UnitQty"),
+        ),
         category: mapCategory(name, brand || null),
       });
     }
@@ -181,7 +203,9 @@ async function main(): Promise<void> {
   const storeIds = process.argv.slice(2).map(Number).filter(Number.isInteger);
   const stores = storeIds.length > 0 ? storeIds : DEFAULT_STORE_IDS;
 
-  console.log(`Fetching Shufersal PriceFull catalogs for stores: ${stores.join(", ")}`);
+  console.log(
+    `Fetching Shufersal PriceFull catalogs for stores: ${stores.join(", ")}`,
+  );
   const catalog = new Map<string, SeedRow>();
 
   for (const storeId of stores) {
@@ -194,7 +218,9 @@ async function main(): Promise<void> {
   }
 
   // Stable order → reviewable diffs when the committed CSV is refreshed.
-  const rows = [...catalog.values()].sort((a, b) => a.barcode.localeCompare(b.barcode));
+  const rows = [...catalog.values()].sort((a, b) =>
+    a.barcode.localeCompare(b.barcode),
+  );
 
   const byCategory = new Map<string, number>();
   for (const row of rows) {
@@ -206,13 +232,20 @@ async function main(): Promise<void> {
 
   console.log(`\nWrote ${rows.length} unique products to ${OUTPUT_PATH}`);
   console.log("Category distribution:");
-  for (const [category, count] of [...byCategory.entries()].sort((a, b) => b[1] - a[1])) {
+  for (const [category, count] of [...byCategory.entries()].sort(
+    (a, b) => b[1] - a[1],
+  )) {
     console.log(`  ${category.padEnd(18)} ${count}`);
   }
-  console.log("\nNext: npm run seed:db (requires .env.local with the service-role key)");
+  console.log(
+    "\nNext: npm run seed:db (requires .env.local with the service-role key)",
+  );
 }
 
 main().catch((error) => {
-  console.error("\nfetch-catalog failed:", error instanceof Error ? error.message : error);
+  console.error(
+    "\nfetch-catalog failed:",
+    error instanceof Error ? error.message : error,
+  );
   process.exitCode = 1;
 });
