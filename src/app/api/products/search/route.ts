@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { searchProducts } from "@/lib/products/search";
 import { searchQuerySchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 import type { ApiErrorBody, SearchResponse } from "@/lib/types";
@@ -11,10 +12,10 @@ import type { ApiErrorBody, SearchResponse } from "@/lib/types";
  *   200 → SearchResponse { items, page, hasMore } (page size 20)
  *   400 → ApiErrorBody code 'invalid_request' (bad q/page)
  *   401 → ApiErrorBody code 'unauthenticated'
+ *   500 → ApiErrorBody code 'internal'
  *
- * Wave 1 stub: auth + validation are real; the trigram catalog search is
- * implemented in Wave 2 by Agent A inside src/lib/products/ WITHOUT changing
- * this external contract. Until then every query returns an empty page.
+ * Thin wrapper: auth + shape validation live here; the trigram catalog search
+ * lives in src/lib/products/search.ts (our products table only — never OFF).
  */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -46,10 +47,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(body, { status: 400 });
   }
 
-  const response: SearchResponse = {
-    items: [],
-    page: parsed.data.page,
-    hasMore: false,
-  };
-  return NextResponse.json(response);
+  try {
+    const response: SearchResponse = await searchProducts(
+      supabase,
+      parsed.data.q,
+      parsed.data.page,
+    );
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("[api/products/search]", error);
+    const body: ApiErrorBody = {
+      error: { code: "internal", message: "Something went wrong. Please try again." },
+    };
+    return NextResponse.json(body, { status: 500 });
+  }
 }

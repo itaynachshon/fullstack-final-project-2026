@@ -1,18 +1,102 @@
 @import "tailwindcss";
 
 /*
- * Base Tailwind/UI setup — part of the Wave 1 frozen base.
- * Mobile-first, light theme. Product names (often Hebrew) are rendered with
- * dir="auto" on their elements by feature components in Wave 2.
+ * Design tokens — applied EXACTLY as specified by docs/UI_DESIGN.md §4
+ * ("Design Tokens — shadcn/ui Integration Contract", one-time setup §14.1).
+ * This is the only place colors are ever defined; components reference
+ * semantic utilities (bg-primary, text-muted-foreground, …) exclusively.
+ *
+ * Light mode only for the MVP (UI_DESIGN §3.3). Product names are often
+ * Hebrew and are rendered with dir="auto" on their elements by feature
+ * components.
  */
 
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.004 95);
+  --foreground: oklch(0.24 0.012 95);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.012 95);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.012 95);
+  --primary: oklch(0.52 0.12 160);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0.02 160);
+  --secondary-foreground: oklch(0.35 0.08 160);
+  --muted: oklch(0.955 0.006 95);
+  --muted-foreground: oklch(0.5 0.015 95);
+  --accent: oklch(0.95 0.015 160);
+  --accent-foreground: oklch(0.3 0.05 160);
+  --destructive: oklch(0.55 0.21 27);
+  --destructive-foreground: oklch(1 0 0);
+  --warning: oklch(0.965 0.04 90);
+  --warning-foreground: oklch(0.47 0.1 70);
+  --border: oklch(0.9 0.008 95);
+  --input: oklch(0.9 0.008 95);
+  --ring: oklch(0.52 0.12 160);
+}
+
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Standard shadcn token → utility mappings, plus the warning pair. */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* One radius knob; shadcn-derived scale: sm 8 / md 10 / lg 12 / xl 16. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Rubik covers Latin + Hebrew in one family (UI_DESIGN §3.1). */
+  --font-sans: var(--font-rubik);
+
+  /* Motion tokens (UI_DESIGN §12): feedback only, nothing exceeds 300ms. */
+  --animate-sheet-in: sheet-in 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-dialog-in: dialog-in 200ms ease-out;
+  --animate-toast-in: toast-in 200ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
 }
 
 body {
-  background-color: var(--color-zinc-50);
-  color: var(--color-zinc-900);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
   font-family: var(--font-sans);
 }

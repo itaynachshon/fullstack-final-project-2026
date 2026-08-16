@@ -1,26 +1,32 @@
 import { BottomNav } from "@/components/app-shell/BottomNav";
-import { SignOutButton } from "@/components/auth/SignOutButton";
+import { ToastProvider } from "@/components/app-shell/Toaster";
+import { TopBar } from "@/components/app-shell/TopBar";
 
 /**
- * Authenticated app shell: small header + thumb-reachable bottom navigation
- * (docs/TECHNICAL_DESIGN.md §9.1). Route protection happens in src/proxy.ts
- * and again inside each page (defense in depth); RLS is the final authority.
+ * Authenticated app shell (docs/UI_DESIGN.md §5): no global chrome on phones
+ * beyond the thumb-reachable bottom bar (page headers carry per-page
+ * actions); a top header bar replaces it from md up. Route protection
+ * happens in src/proxy.ts and again inside each page (defense in depth);
+ * RLS is the final authority.
+ *
+ * Pages own their max-widths (§10); the shell provides gutters and bottom-nav
+ * clearance (pb-24) so the last card is never hidden behind the bar.
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex h-14 w-full max-w-md items-center justify-between px-4">
-          <span className="text-base font-semibold tracking-tight">
-            Fridge Tracker
-          </span>
-          <SignOutButton />
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-md flex-1 px-4 pt-6 pb-24">
-        {children}
-      </main>
-      <BottomNav />
-    </div>
+    <ToastProvider>
+      <div className="flex min-h-dvh flex-col">
+        <TopBar />
+        <main className="w-full flex-1 px-4 pb-24 md:px-6 md:pb-12">
+          {children}
+        </main>
+        <footer className="hidden pb-6 md:block">
+          <p className="mx-auto w-full max-w-5xl px-6 text-xs text-muted-foreground">
+            Product data: our catalog + Open Food Facts (ODbL).
+          </p>
+        </footer>
+        <BottomNav />
+      </div>
+    </ToastProvider>
   );
 }

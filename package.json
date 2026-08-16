@@ -10,12 +10,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "seed:fetch": "node scripts/fetch-catalog.ts",
+    "seed:db": "node scripts/seed-db.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
+    "@yudiel/react-qr-scanner": "^2.6.0",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",

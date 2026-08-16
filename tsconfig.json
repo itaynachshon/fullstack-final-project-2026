@@ -11,6 +11,10 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // scripts/ run under plain `node` (Node ≥ 23 type stripping), which
+    // resolves relative imports only WITH the .ts extension; this flag lets
+    // tsc accept those imports (legal because noEmit is set).
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

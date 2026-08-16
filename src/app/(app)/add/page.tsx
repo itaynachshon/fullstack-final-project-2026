@@ -1,34 +1,52 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { AddFlow, type AddMode } from "@/components/fridge/add/AddFlow";
 import { ROUTES } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Add products",
+  title: "Add a product",
 };
 
 /**
- * Add flow route (frozen route map). The Scan / Search / Manual tabs are
- * Wave 2 work (Agents B and C) — this page is a protected placeholder only.
+ * Add Product (docs/UI_DESIGN.md §6.4): Scan / Search / Manual in one
+ * client flow, max-w-lg. URL params form the Wave 3 entry point for the
+ * unknown-scan fallback (?mode=manual&barcode=…) without a rewrite.
  */
-export default async function AddPage() {
+export default async function AddPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect(ROUTES.login);
 
-  if (!user) {
-    redirect(ROUTES.login);
-  }
+  const params = await searchParams;
+  const rawMode = typeof params.mode === "string" ? params.mode : undefined;
+  const mode: AddMode | undefined =
+    rawMode === "scan" || rawMode === "search" || rawMode === "manual"
+      ? rawMode
+      : undefined;
+  const barcode =
+    typeof params.barcode === "string" && params.barcode.length > 0
+      ? params.barcode
+      : undefined;
 
   return (
-    <section className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
-      <h1 className="text-lg font-semibold">Add products</h1>
-      <p className="max-w-xs text-sm text-zinc-500">
-        Scanning, catalog search, and manual entry are coming in the next
-        milestone.
-      </p>
-    </section>
+    <div className="mx-auto w-full max-w-lg">
+      <header className="pt-4 pb-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Add a product</h1>
+      </header>
+      <div className="mt-2">
+        <AddFlow
+          initialMode={mode ?? (barcode ? "manual" : "scan")}
+          initialBarcode={barcode}
+        />
+      </div>
+    </div>
   );
 }
