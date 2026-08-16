@@ -13,6 +13,9 @@
     "pretest": "node scripts/sync-zxing-wasm.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:public": "playwright test --grep @public",
+    "test:e2e:ui": "playwright test --ui",
     "wasm:sync": "node scripts/sync-zxing-wasm.mjs",
     "seed:fetch": "node scripts/fetch-catalog.ts",
     "seed:db": "node scripts/seed-db.ts",
@@ -29,6 +32,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

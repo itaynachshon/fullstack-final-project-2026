@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+/blob-report
 
 # generated: ZXing WASM decoder binary, copied from node_modules by
 # scripts/sync-zxing-wasm.mjs (predev/prebuild/pretest) — never hand-edited

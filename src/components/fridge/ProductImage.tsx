@@ -7,6 +7,7 @@ import { cn } from "@/components/ui/utils";
 import type { Category } from "@/lib/types";
 
 import { CategoryIcon } from "./CategoryIcon";
+import { renderableImageSrc } from "./image-src";
 
 /**
  * The one product-image treatment (docs/UI_DESIGN.md §7, rule 9): fixed 1:1,
@@ -14,6 +15,11 @@ import { CategoryIcon } from "./CategoryIcon";
  * (OFF packshots are on white; cover-cropping decapitates bottles). Missing
  * image and runtime load errors both fall back to the category icon centered
  * on `bg-muted` — deterministic and calm, never a broken-image glyph.
+ *
+ * The src is gated through renderableImageSrc (allow-listed host only) so a
+ * hostile/broken URL stored in the shared catalog degrades to the icon
+ * fallback instead of crashing the page — next/image throws for hosts not in
+ * next.config.ts remotePatterns (see image-src.ts for the full rationale).
  */
 export function ProductImage({
   imageUrl,
@@ -30,20 +36,20 @@ export function ProductImage({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const showImage = imageUrl !== null && !failed;
+  const src = failed ? null : renderableImageSrc(imageUrl);
 
   return (
     <div
       className={cn(
         "relative shrink-0 overflow-hidden rounded-lg border",
-        showImage ? "bg-white" : "flex items-center justify-center bg-muted",
+        src !== null ? "bg-white" : "flex items-center justify-center bg-muted",
         className,
       )}
       style={{ width: size, height: size }}
     >
-      {showImage ? (
+      {src !== null ? (
         <Image
-          src={imageUrl}
+          src={src}
           alt={name}
           width={size}
           height={size}

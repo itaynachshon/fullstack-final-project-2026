@@ -5,7 +5,12 @@
  */
 
 import { CATEGORIES } from "@/lib/types";
-import type { Category, FridgeItem, Product, RemainingLevel } from "@/lib/types";
+import type {
+  Category,
+  FridgeItem,
+  Product,
+  RemainingLevel,
+} from "@/lib/types";
 
 import { LEVEL_LABELS, relativeTime } from "./format";
 
@@ -34,7 +39,9 @@ interface StockState {
 
 /** `remaining_percent <= 25 AND finished_at IS NULL` — 25 is low, 26 is not. */
 export function isLow(unit: StockState): boolean {
-  return unit.remainingPercent <= LOW_STOCK_THRESHOLD && unit.finishedAt === null;
+  return (
+    unit.remainingPercent <= LOW_STOCK_THRESHOLD && unit.finishedAt === null
+  );
 }
 
 /** `remaining_percent = 0 AND finished_at != NULL`. */
@@ -216,7 +223,8 @@ export function deriveFinishedRecently(
   for (const unit of units) {
     if (!isFinished(unit)) continue;
     const finishedAtMs = Date.parse(unit.finishedAt as string);
-    if (finishedAtMs < cutoff || finishedAtMs > now.getTime() + 60_000) continue;
+    if (finishedAtMs < cutoff || finishedAtMs > now.getTime() + 60_000)
+      continue;
     if (liveProductIds.has(unit.productId)) continue;
     const current = latestPerProduct.get(unit.productId);
     if (!current || finishedAtMs > Date.parse(current.finishedAt as string)) {
@@ -254,6 +262,7 @@ export type ActivityDirection = "consumed" | "restored";
 export interface ActivityEntry {
   id: string;
   direction: ActivityDirection;
+  actionLabel: "Consumed" | "Restored";
   productName: string;
   levelLabel: string;
   relativeLabel: string;
@@ -276,6 +285,7 @@ export function deriveActivity(
       direction: (event.deltaPercent > 0
         ? "consumed"
         : "restored") as ActivityDirection,
+      actionLabel: event.deltaPercent > 0 ? "Consumed" : "Restored",
       productName: event.productName,
       levelLabel: LEVEL_LABELS[event.remainingAfter],
       relativeLabel: relativeTime(event.createdAt, now),

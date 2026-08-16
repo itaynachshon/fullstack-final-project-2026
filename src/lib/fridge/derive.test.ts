@@ -178,7 +178,10 @@ describe("groupByProduct", () => {
     const [group] = groupByProduct([newer, older]);
 
     // Display order: fullest first…
-    expect(group.units.map(({ unit: u }) => u.id)).toEqual([newer.id, older.id]);
+    expect(group.units.map(({ unit: u }) => u.id)).toEqual([
+      newer.id,
+      older.id,
+    ]);
     // …but "Unit 1" stays the oldest row regardless of level.
     expect(
       group.units.find(({ unit: u }) => u.id === older.id)?.unitNumber,
@@ -280,7 +283,9 @@ describe("deriveActivity", () => {
       NOW,
     );
     expect(consumed.direction).toBe("consumed");
+    expect(consumed.actionLabel).toBe("Consumed");
     expect(restored.direction).toBe("restored");
+    expect(restored.actionLabel).toBe("Restored");
   });
 
   it("humanizes the level and keeps the product name for dir=auto rendering", () => {

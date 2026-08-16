@@ -91,9 +91,7 @@ export default async function RestockPage() {
               <h2 id="restock-low-heading" className="text-base font-semibold">
                 Running low
               </h2>
-              {low.length > 0 && (
-                <Badge variant="warning">{low.length}</Badge>
-              )}
+              {low.length > 0 && <Badge variant="warning">{low.length}</Badge>}
             </div>
             {low.length === 0 ? (
               <EmptyState
@@ -197,6 +195,7 @@ export default async function RestockPage() {
                       />
                     )}
                     <span className="min-w-0 truncate">
+                      {entry.actionLabel}{" "}
                       <span dir="auto">{entry.productName}</span>
                       {" → "}
                       {entry.levelLabel}

@@ -1,4 +1,4 @@
-# CI — lint, typecheck, and unit tests on every push and pull request.
+# CI — static/unit checks plus credential-free browser boundaries.
 # (Vercel builds and deploys independently; the repo rule is: never merge red.
 # The Supabase keep-alive workflow is a separate Wave 5 deliverable.)
 name: CI
@@ -33,3 +33,29 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  e2e-public:
+    name: Playwright · public auth boundaries
+    needs: checks
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test logged-out boundaries
+        run: npm run test:e2e:public

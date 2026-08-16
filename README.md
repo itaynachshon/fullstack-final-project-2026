@@ -11,6 +11,9 @@ lives in [`docs/`](docs/):
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system components and data flow
 - [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) — schema, contracts, flows
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — wave-by-wave build plan
+- [`docs/TEST_SPEC.md`](docs/TEST_SPEC.md) — automated and manual test strategy
+- [`docs/SECURITY.md`](docs/SECURITY.md) — trust boundaries, RLS audit, verified attack matrix
+- [`docs/SCALABILITY.md`](docs/SCALABILITY.md) — measured query plans, growth analysis, scaling path
 
 ## Status: Wave 3 (integrated MVP)
 
@@ -108,6 +111,8 @@ npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
 npm test             # Vitest (single run; same auto-sync)
 npm run test:watch   # Vitest (watch)
+npm run test:e2e     # Playwright (credential-gated tests skip when unconfigured)
+npm run test:e2e:ui  # Playwright interactive runner
 npm run seed:db      # seed/upsert the product catalog into Supabase
 npm run seed:fetch   # regenerate data/catalog-seed.csv from the retailer portal
 npm run wasm:sync    # manually copy zxing_reader.wasm into public/wasm/
@@ -115,8 +120,10 @@ npm run format       # Prettier (write)
 npm run format:check # Prettier (check)
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, typecheck, and unit tests on every
-push and pull request.
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, and the
+credential-free Playwright auth-boundary checks on every push and pull request.
+Authenticated browser and RLS tests require dedicated test-user credentials;
+their setup and exact status rules are documented in `docs/TEST_SPEC.md`.
 
 ## Deployment (Vercel)
 
