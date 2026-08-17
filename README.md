@@ -6,8 +6,7 @@ restock list built from what actually ran out.
 
 University Fullstack course final project.
 
-**Live demo:** _pending final deployment — after importing the repo in Vercel
-(see [Deployment](#deployment-vercel)), paste the production URL here._
+**Live demo:** <https://fridge-tracker-delta.vercel.app>
 
 ## Documentation index
 
@@ -33,17 +32,24 @@ barcodes), the restock page (running low · finished recently · recent
 activity), and a ~7,490-product seeded Israeli catalog
 (`data/catalog-seed.csv`, Shufersal price-transparency data).
 
-Verified on a local Supabase stack (Docker) with the full migration chain:
+Verified on a local Supabase stack (Docker) with the full migration chain, and
+re-verified 2026-08-17 against the hosted Supabase project (Frankfurt) and the
+production Vercel deployment:
 
 - 318 Vitest unit/integration tests passing
-- 8/8 Playwright E2E tests passing (auth boundaries, full fridge lifecycle,
-  barcode edge cases, catalog search, cross-user RLS attack matrix)
+- 8/8 Playwright E2E tests passing against the **hosted** Supabase project and
+  again 8/8 against the **production URL** (auth boundaries, full fridge
+  lifecycle, barcode edge cases, catalog search, cross-user RLS attack matrix)
+- hosted catalog seeded: 7,490 products; Bamba `7290000066318` resolves from
+  the seeded catalog
+- production smoke: `/login`, `/signup`, `/scan-test` 200; logged-out
+  `/fridge`, `/add`, `/restock` redirect to `/login`;
+  `/wasm/zxing_reader.wasm` served from the app origin (`application/wasm`)
 - lint, typecheck, production build: clean
 - responsive QA at 390×844 / 430×932 / 768×1024 / 1440×900: no defects
 
-Remaining items that require the student's hosted accounts are listed in
-[Deployment](#deployment-vercel) and physical-device checks in
-`docs/TEST_SPEC.md` §"Physical device acceptance".
+The remaining manual item is the physical-phone camera test in
+`docs/TEST_SPEC.md` §9 (real iPhone Safari / Android Chrome).
 
 ## Screenshots
 

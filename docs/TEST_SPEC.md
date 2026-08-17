@@ -307,17 +307,19 @@ GitHub Actions continues to run lint, typecheck, and all Vitest tests. A separat
 
 ## 13. Deployment Smoke Checklist
 
-**Status: Pending deployment**
+**Status: Executed 2026-08-17 against `https://fridge-tracker-delta.vercel.app`
+(hosted Supabase project, Frankfurt)** — except the physical-phone checklist,
+which requires a real device.
 
-- [ ] Production URL is HTTPS and serves `/login`.
-- [ ] Logged-out `/fridge`, `/add`, and `/restock` redirect to `/login`.
-- [ ] Dedicated test user can log in and log out.
-- [ ] Seeded Hebrew search returns the configured known product.
-- [ ] `/wasm/zxing_reader.wasm` returns HTTP 200.
-- [ ] Add one unit, change a level, finish it, open Restock, and restock it.
-- [ ] Refresh each page and verify state persisted.
-- [ ] Trigger one invalid input and verify no raw stack trace/Postgres error appears.
-- [ ] Run the physical-phone and responsive checklists above.
+- [x] Production URL is HTTPS and serves `/login` (`/signup` and `/scan-test` also 200).
+- [x] Logged-out `/fridge`, `/add`, and `/restock` redirect (307) to `/login`.
+- [x] Dedicated test user can log in and log out (full Playwright suite on the production URL).
+- [x] Seeded Hebrew search returns the configured known product (`במבה` → `במבה 80 גרם אסם`).
+- [x] `/wasm/zxing_reader.wasm` returns HTTP 200, `application/wasm`, ~1.09 MB.
+- [x] Add one unit, change a level, finish it, open Restock, and restock it (lifecycle E2E on production).
+- [x] Refresh/navigation persistence verified through the cross-page E2E journeys.
+- [x] Invalid input (bad check digit, RCN store code) shows friendly copy, no stack trace/Postgres error.
+- [ ] Run the physical-phone and responsive checklists above (requires the student's real devices).
 
 For non-mutating remote checks, set `PLAYWRIGHT_BASE_URL=https://<deployment>` and run `npm run test:e2e:public`. Run stateful tests remotely only with dedicated credentials and data.
 
@@ -353,11 +355,21 @@ Evidence must distinguish execution from preparation.
 | Responsive visual QA | **Executed — no defects** | 390×844 / 430×932 / 768×1024 / 1440×900, authenticated, screenshot + overflow audit of /fridge, /add (all tabs), /restock, sheets/dialogs/toasts/focus |
 | Production smoke | Pending deployment | No Vercel URL available yet |
 
+| Check | Result at 2026-08-17 (hosted deployment) | Evidence |
+|---|---|---|
+| Migrations on hosted project | Applied — all 3 in order | `supabase db push` to project `zcbmsukrspenbcizzwqh` (eu-central-1) |
+| Hosted catalog seed | Passed — 7,490 products inserted | `npm run seed:db`; Bamba `7290000066318` resolves via authenticated anon-key read |
+| Playwright full suite vs hosted Supabase | **Passed — 8/8** | `npx playwright test --workers=1`, local server + hosted project, dedicated users A/B |
+| Playwright full suite vs production | **Passed — 8/8** | `PLAYWRIGHT_BASE_URL=https://fridge-tracker-delta.vercel.app npx playwright test --workers=1` |
+| Hosted runtime RLS | **Executed — all attacks blocked** | `e2e/permissions.spec.ts` (@rls) against the hosted project, incl. Wave 5 event-ownership fix |
+| Production smoke | **Passed** | §13 checklist: routes, redirects, WASM binary, full lifecycle journey |
+| Physical camera | Pending manual execution | Requires the student's real phone |
+| Manual responsive re-check on production | Pending manual execution | Automated 4-viewport public checks passed in the production suite |
+
 ## 16. Known Testing Limitations
 
-- Wave 5 executed the authenticated UI and runtime RLS suites against a full local Supabase stack (Docker) with dedicated test users; the one remaining environment gap is a re-run against the student's hosted Supabase project, which is a mechanical repeat once credentials exist.
+- ~~Hosted re-run gap~~ Closed 2026-08-17: the full credentialed suite (incl. the RLS attack matrix) passed 8/8 against the hosted Supabase project and again 8/8 against the production Vercel deployment.
 - No physical iPhone or Android camera test has been performed.
-- No Vercel production deployment smoke has been performed.
 - Chromium is the only automated browser.
 - There is no visual-regression snapshot suite, performance/load suite, or coverage-percentage target.
 - Browser tests do not call live Open Food Facts; outage/mapping behavior is covered with deterministic mocked fetch tests.
