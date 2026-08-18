@@ -42,7 +42,7 @@ The goal is meaningful confidence in the business loop, not a test for every ren
 
 ### Out of scope
 
-There are no tests for email notifications, cron, expiry dates, PWA behavior, price comparison, household sharing, OCR, AI, or nutrition because those features are not in the MVP.
+There are no tests for email notifications, cron, expiry dates, PWA behavior, price comparison, household sharing, OCR, AI, or nutrition because those features are not in the MVP. V2 foundation contracts (schemas, stub actions, migration SQL) are covered by Vitest in `src/lib/v2/`; feature UI, scheduler, and provider tests belong to agents F1–F3 (`docs/FEATURES_V2_PLAN.md` §9).
 
 ## 3. Test Layers and Ownership
 

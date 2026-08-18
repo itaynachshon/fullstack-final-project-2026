@@ -632,3 +632,4 @@ If the product later grew real cross-component client state (e.g., a multi-step 
 - `docs/IMPLEMENTATION_PLAN.md` — approved plan: build order, decision log, risk register.
 - `docs/research/BARCODE_APIS.md` — GTIN/check-digit/RCN semantics, OFF normalization convention and measured behavior (basis of §4–§5).
 - `docs/research/ISRAELI_RETAIL_DATA.md` — seed-source legal basis, portal probes, file format (basis of the seed pipeline and category-mapper constraints).
+- `docs/FEATURES_V2_PLAN.md` — additive V2 schema, RLS, and frozen contracts in `src/lib/v2/`. This document remains the MVP source of truth; V2 does not rewrite §3 or §6.

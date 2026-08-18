@@ -569,3 +569,25 @@ catalog is unmoderated.
 abuse protection; per-user/IP rate limiting and negative caching; catalog
 moderation or private custom products; re-run the §5 matrix and the
 credentialed Playwright suite once against the hosted project before grading.
+
+## 20. V2 foundation (schema only — 2026-08-18)
+
+Additive migration `supabase/migrations/20260818000000_v2_foundation.sql`.
+The MVP attack matrix in §5 is unchanged. Full V2 policy tables and the F2
+cron/service-role exception: `docs/FEATURES_V2_PLAN.md` §7–§8.
+
+What F0 already encoded in SQL:
+
+- `fridge_items.restocked_from_item_id` is nullable; INSERT/UPDATE require the
+  source row to belong to `auth.uid()` (FK-oracle class, same as Wave 5).
+- `restock_reminders`: own-user CRUD; weekdays constrained to 0–6.
+- `notifications`: owners may SELECT and `UPDATE (read_at)` only. No INSERT
+  or DELETE for `authenticated`. Forging in-app notifications requires
+  `service_role` (F2 cron route, not yet implemented).
+- AI tables: users see only their conversations/messages/proposals; messages
+  are append-only; proposal `payload` cannot be updated by the Data API
+  (`GRANT UPDATE (status, updated_at)` only).
+
+The “no service-role client under `src/`” claim in §4 remains true for the
+MVP runtime. F2 will introduce a **cron-only** exception; it must not be used
+by ordinary pages or actions.

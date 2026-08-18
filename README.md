@@ -15,6 +15,7 @@ University Fullstack course final project.
 - [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) — schema, contracts, flows
 - [`docs/UI_DESIGN.md`](docs/UI_DESIGN.md) — screens, components, interaction design
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — wave-by-wave build plan
+- [`docs/FEATURES_V2_PLAN.md`](docs/FEATURES_V2_PLAN.md) — V2 foundation (schema, RLS, frozen contracts, F1/F2/F3 ownership)
 - [`docs/TEST_SPEC.md`](docs/TEST_SPEC.md) — automated and manual test strategy + evidence
 - [`docs/SECURITY.md`](docs/SECURITY.md) — trust boundaries, RLS audit, verified attack matrix
 - [`docs/SCALABILITY.md`](docs/SCALABILITY.md) — measured query plans, growth analysis, scaling path
@@ -121,13 +122,14 @@ The `SUPABASE_SERVICE_ROLE_KEY` is used ONLY by the local catalog seed script
 
 ### 2. Apply the database migrations
 
-There are three migrations, applied in filename order:
+There are four migrations, applied in filename order:
 
-| Migration                             | What it does                                                           |
-| ------------------------------------- | ---------------------------------------------------------------------- |
-| `20260815000000_initial_schema.sql`   | tables, indexes, RLS policies                                           |
+| Migration                               | What it does                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| `20260815000000_initial_schema.sql`     | tables, indexes, RLS policies                                           |
 | `20260816000000_security_hardening.sql` | consumption-event ownership policy + `image_url` CHECK (Wave 5 fix)   |
-| `20260816000100_data_api_grants.sql`  | explicit Data API grants (required on Supabase projects created ≥ 2026) |
+| `20260816000100_data_api_grants.sql`    | explicit Data API grants (required on Supabase projects created ≥ 2026) |
+| `20260818000000_v2_foundation.sql`      | V2 lineage FK, reminder/notification/AI tables + RLS (see `docs/FEATURES_V2_PLAN.md`) |
 
 Option A — Supabase CLI (recommended):
 
@@ -141,7 +143,10 @@ Option B — dashboard: open the SQL Editor and run the contents of each file in
 `supabase/migrations/`, in filename order, once each.
 
 Afterwards, **Database → Tables** should show `products`, `fridge_items`, and
-`consumption_events`, each with RLS enabled.
+`consumption_events`, each with RLS enabled. After the V2 foundation
+migration, also `restock_reminders`, `notifications`, `ai_conversations`,
+`ai_messages`, and `ai_action_proposals`. The MVP UI does not use those
+tables until agents F1–F3 implement their features.
 
 ### 3. Seed the Israeli catalog
 
@@ -183,9 +188,10 @@ npm run format:check # Prettier (check)
 
 ## Testing
 
-- **Unit/integration (Vitest):** 318 tests across barcode normalization and
+- **Unit/integration (Vitest):** 354 tests across barcode normalization and
   classification, product lookup/search, fridge derivations, schema
-  validation, server-action logic, and API contracts.
+  validation, server-action logic, API contracts, and V2 foundation contracts
+  (`src/lib/v2/`).
 - **E2E (Playwright):** 8 tests. Three run credential-free (auth boundaries,
   responsive shell); five need dedicated Supabase test users supplied via
   env vars (full lifecycle, barcode edge cases, catalog search, and the
@@ -281,6 +287,7 @@ src/
     types.ts            # FROZEN shared domain + contract types
     schemas.ts          # FROZEN Zod boundary schemas
     routes.ts           # FROZEN route map + gating predicates
+    v2/                 # V2 frozen contracts + stub actions (docs/FEATURES_V2_PLAN.md)
     barcode/            # GTIN domain: normalize · check digit · classify (RCN)
     products/           # lookup chain, search, Open Food Facts client, categorization
     fridge/             # derivations (low/finished/activity), formatting, mappers, queries
