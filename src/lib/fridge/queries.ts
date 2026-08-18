@@ -32,7 +32,10 @@ export async function fetchFridgeUnits(): Promise<FridgeUnit[]> {
   const { data, error } = await supabase
     .from("fridge_items")
     .select(FRIDGE_ITEM_SELECT)
-    .order("added_at", { ascending: true });
+    .order("added_at", { ascending: true })
+    // Units added in one action share added_at; without a total order the
+    // "Unit N" labels can swap between fetches.
+    .order("id", { ascending: true });
 
   if (error) {
     console.error("fetchFridgeUnits failed:", error);
