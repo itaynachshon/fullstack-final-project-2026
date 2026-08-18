@@ -37,8 +37,8 @@ re-verified 2026-08-17 against the hosted Supabase project (Frankfurt) and the
 production Vercel deployment:
 
 - 318 Vitest unit/integration tests passing
-- 8/8 Playwright E2E tests passing against the **hosted** Supabase project and
-  again 8/8 against the **production URL** (auth boundaries, full fridge
+- 9/9 Playwright E2E tests passing against the **hosted** Supabase project and
+  again 9/9 against the **production URL** (auth boundaries, full fridge
   lifecycle, barcode edge cases, catalog search, cross-user RLS attack matrix)
 - hosted catalog seeded: 7,490 products; Bamba `7290000066318` resolves from
   the seeded catalog

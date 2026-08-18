@@ -16,6 +16,7 @@ export const e2eEnvironment = {
   catalog: {
     query: process.env.E2E_CATALOG_QUERY,
     productName: process.env.E2E_CATALOG_PRODUCT_NAME,
+    barcode: process.env.E2E_CATALOG_BARCODE,
   },
 };
 
@@ -36,4 +37,9 @@ export const hasTwoUsers =
 export const hasSeededCatalogTarget =
   hasUserA &&
   Boolean(e2eEnvironment.catalog.query) &&
+  Boolean(e2eEnvironment.catalog.productName);
+
+export const hasSeededCatalogBarcode =
+  hasUserA &&
+  Boolean(e2eEnvironment.catalog.barcode) &&
   Boolean(e2eEnvironment.catalog.productName);

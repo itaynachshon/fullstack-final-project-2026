@@ -359,8 +359,9 @@ Evidence must distinguish execution from preparation.
 |---|---|---|
 | Migrations on hosted project | Applied — all 3 in order | `supabase db push` to project `zcbmsukrspenbcizzwqh` (eu-central-1) |
 | Hosted catalog seed | Passed — 7,490 products inserted | `npm run seed:db`; Bamba `7290000066318` resolves via authenticated anon-key read |
-| Playwright full suite vs hosted Supabase | **Passed — 8/8** | `npx playwright test --workers=1`, local server + hosted project, dedicated users A/B |
-| Playwright full suite vs production | **Passed — 8/8** | `PLAYWRIGHT_BASE_URL=https://fridge-tracker-delta.vercel.app npx playwright test --workers=1` |
+| Playwright full suite vs hosted Supabase | **Passed — 9/9** (2026-08-18, incl. the typed-barcode lookup regression test) | `npx playwright test --workers=1`, local server + hosted project, dedicated users A/B |
+| Playwright full suite vs production | **Passed — 9/9** (2026-08-18) | `PLAYWRIGHT_BASE_URL=https://fridge-tracker-delta.vercel.app npx playwright test --workers=1` |
+| Scan/typed lookup "found" regression (2026-08-18) | **Fixed + regression-tested** | Prop-driven `Modal` close echoed `onClose`, resetting ScanPanel to idle and instantly closing the confirm sheet after a successful lookup; fixed in `modal.tsx`, covered by the new `E2E_CATALOG_BARCODE` journey |
 | Hosted runtime RLS | **Executed — all attacks blocked** | `e2e/permissions.spec.ts` (@rls) against the hosted project, incl. Wave 5 event-ownership fix |
 | Production smoke | **Passed** | §13 checklist: routes, redirects, WASM binary, full lifecycle journey |
 | Physical camera | Pending manual execution | Requires the student's real phone |

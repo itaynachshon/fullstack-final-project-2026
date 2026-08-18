@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   e2eEnvironment,
+  hasSeededCatalogBarcode,
   hasSeededCatalogTarget,
   hasUserA,
 } from "./support/environment";
@@ -188,6 +189,48 @@ test.describe("@supabase authenticated MVP journeys", () => {
       "true",
     );
     await expect(page.getByLabel("Product name")).toHaveValue(query);
+  });
+
+  // Regression: the scan/typed lookup "found" path transitions from the
+  // lookup sheet to the confirm sheet. A prop-driven Modal close used to echo
+  // onClose back into the panel, resetting the phase to idle and closing the
+  // confirm sheet the instant it opened — so a successful lookup showed
+  // "Looking it up…" and then silently nothing (typed and camera-scanned
+  // codes share lookUp(), so this covers both).
+  test("resolves a typed seeded-catalog barcode to the confirm sheet and adds it", async ({
+    page,
+  }) => {
+    test.skip(
+      !hasSeededCatalogBarcode,
+      "Set E2E_CATALOG_BARCODE and E2E_CATALOG_PRODUCT_NAME to enable.",
+    );
+
+    const productName = e2eEnvironment.catalog.productName as string;
+    const client = await createUserClient(userACredentials());
+    const originalItemIds = await ownItemIdsForProductName(client, productName);
+
+    try {
+      await loginThroughUi(page, userACredentials());
+      await page.goto("/add");
+
+      await page
+        .getByLabel("Or type the barcode")
+        .fill(e2eEnvironment.catalog.barcode as string);
+      await page.getByRole("button", { name: "Look up" }).click();
+
+      const dialog = page.getByRole("dialog", {
+        name: `Add ${productName} to your fridge`,
+      });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Add to fridge" }).click();
+      await expect(page.getByText(`Added ${productName}`)).toBeVisible();
+
+      await page.goto("/fridge");
+      await expect(productCard(page, productName)).toBeVisible();
+    } finally {
+      await deleteNewOwnItems(client, productName, originalItemIds);
+      await client.auth.signOut();
+    }
   });
 
   test("adds a configured seeded-catalog product through Search", async ({

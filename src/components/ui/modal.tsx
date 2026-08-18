@@ -41,6 +41,14 @@ export function Modal({
 }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
+  // True while the effect below is closing the dialog because `open` flipped
+  // false. The native `close` event fires either way, but a prop-driven close
+  // must NOT invoke onClose: the parent already knows, and echoing it back
+  // clobbers whatever state change closed this sheet (e.g. a lookup sheet
+  // giving way to the product-confirm sheet would reset the phase to idle and
+  // instantly close the new sheet).
+  const closingViaProp = useRef(false);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -48,6 +56,9 @@ export function Modal({
       dialog.showModal();
     } else if (!open && dialog.open) {
       // Closing while attached lets the browser restore focus to the trigger.
+      // The flag is consumed in the close handler: browsers fire `close` from
+      // a queued task, after this effect has already returned.
+      closingViaProp.current = true;
       dialog.close();
     }
   }, [open]);
@@ -70,7 +81,13 @@ export function Modal({
       ref={dialogRef}
       aria-label={ariaLabel}
       aria-labelledby={labelledBy}
-      onClose={onClose}
+      onClose={() => {
+        if (closingViaProp.current) {
+          closingViaProp.current = false;
+          return;
+        }
+        onClose();
+      }}
       onClick={(event) => {
         // Clicks on ::backdrop dispatch with the dialog itself as target.
         if (event.target === event.currentTarget) {
