@@ -20,9 +20,7 @@ import type {
 /* ─── Shared V2 action result ─────────────────────────────────────────────── */
 
 export type V2ActionErrorCode =
-  | ActionError["code"]
-  | "not_implemented"
-  | "conflict";
+  ActionError["code"] | "not_implemented" | "conflict";
 
 export interface V2ActionError {
   code: V2ActionErrorCode;
@@ -328,10 +326,7 @@ export type AIChatResponse =
     };
 
 export type V2ApiErrorCode =
-  | "invalid_request"
-  | "unauthenticated"
-  | "internal"
-  | "not_implemented";
+  "invalid_request" | "unauthenticated" | "internal" | "not_implemented";
 
 export interface V2ApiErrorBody {
   error: {

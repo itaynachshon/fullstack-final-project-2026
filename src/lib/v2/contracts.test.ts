@@ -6,24 +6,6 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import type { z } from "zod";
 
 import {
-  acceptAIAddProposal,
-  acceptAIConsumptionProposal,
-  getAIConversation,
-  listAIConversations,
-  rejectAIProposal,
-} from "@/lib/v2/actions/ai";
-import { getItemHistory } from "@/lib/v2/actions/history";
-import {
-  listNotifications,
-  markNotificationRead,
-} from "@/lib/v2/actions/notifications";
-import {
-  createRestockReminder,
-  deleteRestockReminder,
-  listRestockReminders,
-  updateRestockReminder,
-} from "@/lib/v2/actions/reminders";
-import {
   acceptAIProposalSchema,
   addItemProposalPayloadSchema,
   aiChatRequestSchema,
@@ -160,9 +142,9 @@ describe("V2 notification schemas", () => {
   });
 
   it("requires a uuid to mark read", () => {
-    expect(markNotificationReadSchema.safeParse({ id: VALID_UUID }).success).toBe(
-      true,
-    );
+    expect(
+      markNotificationReadSchema.safeParse({ id: VALID_UUID }).success,
+    ).toBe(true);
     expect(markNotificationReadSchema.safeParse({ id: "x" }).success).toBe(
       false,
     );
@@ -269,115 +251,18 @@ describe("V2 schema outputs match frozen input types", () => {
       z.output<typeof acceptAIProposalSchema>
     >().toEqualTypeOf<AcceptAIProposalInput>();
     expectTypeOf<z.output<typeof recipeSchema>>().toEqualTypeOf<Recipe>();
-    expectTypeOf<
-      z.output<typeof daysOfWeekSchema>
-    >().toEqualTypeOf<CreateRestockReminderInput["daysOfWeek"]>();
+    expectTypeOf<z.output<typeof daysOfWeekSchema>>().toEqualTypeOf<
+      CreateRestockReminderInput["daysOfWeek"]
+    >();
   });
 });
 
-describe("V2 action stubs", () => {
-  it("validate input then return not_implemented", async () => {
-    const history = await getItemHistory({ itemId: VALID_UUID });
-    expect(history).toEqual({
-      ok: false,
-      error: expect.objectContaining({ code: "not_implemented" }),
-    });
-
-    const created = await createRestockReminder({
-      daysOfWeek: [1],
-      localTime: "18:30",
-      timezone: "UTC",
-      enabled: true,
-      emailEnabled: false,
-      inAppEnabled: true,
-    });
-    expect(created.ok).toBe(false);
-    if (!created.ok) expect(created.error.code).toBe("not_implemented");
-
-    const listed = await listRestockReminders();
-    expect(listed).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const updated = await updateRestockReminder({ id: VALID_UUID });
-    expect(updated).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const deleted = await deleteRestockReminder({ id: VALID_UUID });
-    expect(deleted).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const notes = await listNotifications({});
-    expect(notes).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const read = await markNotificationRead({ id: VALID_UUID });
-    expect(read).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const chats = await listAIConversations();
-    expect(chats).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const detail = await getAIConversation({ conversationId: VALID_UUID });
-    expect(detail).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const add = await acceptAIAddProposal({ proposalId: VALID_UUID });
-    expect(add).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const consume = await acceptAIConsumptionProposal({
-      proposalId: VALID_UUID,
-    });
-    expect(consume).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-
-    const rejected = await rejectAIProposal({ proposalId: VALID_UUID });
-    expect(rejected).toMatchObject({
-      ok: false,
-      error: { code: "not_implemented" },
-    });
-  });
-
-  it("rejects malformed ids before claiming not_implemented", async () => {
-    const history = await getItemHistory({ itemId: "bad" });
-    expect(history).toMatchObject({
-      ok: false,
-      error: { code: "validation" },
-    });
-
-    const reminder = await createRestockReminder({
-      daysOfWeek: [9 as 0],
-      localTime: "18:30",
-      timezone: "UTC",
-      enabled: true,
-      emailEnabled: false,
-      inAppEnabled: true,
-    });
-    expect(reminder).toMatchObject({
-      ok: false,
-      error: { code: "validation" },
-    });
-  });
-});
+// All V2 action stubs are now implemented, so the stub-expectation block is
+// gone. Behavior is covered in the owning features' suites:
+// - F1 history:       src/lib/v2/actions/history.test.ts
+// - F2 reminders:     src/lib/v2/actions/reminders.test.ts
+// - F2 notifications: src/lib/v2/actions/notifications.test.ts
+// - F3 AI chat:       src/lib/v2/actions/ai.test.ts
 
 describe("V2 routes", () => {
   it("freezes settings and chat paths", () => {
@@ -406,7 +291,9 @@ describe("V2 foundation migration contract", () => {
       "ai_action_proposals",
     ]) {
       expect(sql).toContain(`create table public.${table}`);
-      expect(sql).toContain(`alter table public.${table} enable row level security`);
+      expect(sql).toContain(
+        `alter table public.${table} enable row level security`,
+      );
     }
   });
 

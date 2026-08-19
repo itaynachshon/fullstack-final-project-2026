@@ -591,3 +591,45 @@ What F0 already encoded in SQL:
 The “no service-role client under `src/`” claim in §4 remains true for the
 MVP runtime. F2 will introduce a **cron-only** exception; it must not be used
 by ordinary pages or actions.
+
+## 21. F2 — restock reminders & notifications (2026-08-18)
+
+Runbook and architecture: `docs/RESTOCK_REMINDERS.md`. Security posture:
+
+**Where the service role actually lives.** The F2 exception anticipated in
+§20 landed *outside* the Next.js app entirely: the worker is a **Supabase
+Edge Function** (`supabase/functions/restock-reminders/`), invoked by
+`pg_cron` → `pg_net`. `SUPABASE_SERVICE_ROLE_KEY` is provided by the Edge
+runtime to that function only. **Nothing under `src/` uses a service-role
+client; no Supabase secret exists on Vercel; there is no `/api/cron` route.**
+The §4 claim is therefore still literally true for the web app.
+
+**Worker invocation auth.** The function deploys with `--no-verify-jwt` and
+gates every request on `Authorization: Bearer $RESTOCK_CRON_SECRET`
+(timing-safe comparison; fails closed with 500 if the secret is unset, 401
+otherwise). The cron job reads the secret from **Supabase Vault** at run
+time — job SQL, `cron.job` rows, and the repo never contain the value. The
+gate matters beyond DoS: the function accepts a `now` test override, so an
+unauthenticated caller must not be able to fire future occurrences early.
+
+**Row security (empirically tested in `e2e/reminders-rls.spec.ts`).**
+
+| Attack | Result |
+|---|---|
+| B reads/updates/deletes A's `restock_reminders` row | empty result set — no existence oracle |
+| B inserts a reminder with A's `user_id` | error (INSERT policy `with check`) |
+| A or B inserts any `notifications` row (self-forgery included) | error — no INSERT policy or grant for `authenticated` |
+| B reads or marks-read A's notification | empty result set |
+| A updates a notification column other than `read_at` | error — column-level `GRANT UPDATE (read_at)` |
+
+**App-layer guards on top of RLS:** `last_sent_key` (the worker's
+idempotency marker) is accepted by **no** client input schema — Zod strips
+it and the server actions never write it (unit-tested); notification inserts
+have no server-action path at all. Recipient email for reminder messages
+comes from GoTrue (auth identity), never from client input; product names in
+emails are HTML-escaped before templating.
+
+**Failure containment.** Email-provider failures degrade to a per-channel
+outcome; they cannot block in-app delivery, and retries cannot duplicate
+sends because each occurrence is claimed once via an atomic
+compare-and-set on `last_sent_key` before any send is attempted.

@@ -16,6 +16,7 @@ University Fullstack course final project.
 - [`docs/UI_DESIGN.md`](docs/UI_DESIGN.md) — screens, components, interaction design
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — wave-by-wave build plan
 - [`docs/FEATURES_V2_PLAN.md`](docs/FEATURES_V2_PLAN.md) — V2 foundation (schema, RLS, frozen contracts, F1/F2/F3 ownership)
+- [`docs/RESTOCK_REMINDERS.md`](docs/RESTOCK_REMINDERS.md) — F2 reminders: Edge Function worker, Brevo email, cron deployment runbook
 - [`docs/TEST_SPEC.md`](docs/TEST_SPEC.md) — automated and manual test strategy + evidence
 - [`docs/SECURITY.md`](docs/SECURITY.md) — trust boundaries, RLS audit, verified attack matrix
 - [`docs/SCALABILITY.md`](docs/SCALABILITY.md) — measured query plans, growth analysis, scaling path

@@ -12,6 +12,7 @@ import {
   ShoppingBasketIcon,
   TriangleAlertIcon,
 } from "@/components/icons";
+import { RemindersSection } from "@/components/reminders/RemindersSection";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@/lib/fridge/derive";
 import { levelLabel, relativeTime } from "@/lib/fridge/format";
 import { fetchFridgeUnits, fetchRecentActivity } from "@/lib/fridge/queries";
+import { fetchRestockReminders } from "@/lib/reminders/queries";
 import { ROUTES } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +35,11 @@ export const metadata: Metadata = {
  * live), Recently finished (last 14 days, hidden once restocked), Recent
  * activity (last 10 events, pure history). Urgency reads through position,
  * icons, counts, and fraction text — never color alone.
+ *
+ * V2 (F2) adds "Remind me to restock" below the checklist: reminder
+ * schedules that a Supabase Edge Function turns into email/in-app
+ * notifications. It renders in the empty state too — setting up a reminder
+ * is most useful before anything runs low.
  */
 export default async function RestockPage() {
   const supabase = await createClient();
@@ -41,9 +48,10 @@ export default async function RestockPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect(ROUTES.login);
 
-  const [units, events] = await Promise.all([
+  const [units, events, reminders] = await Promise.all([
     fetchFridgeUnits(),
     fetchRecentActivity(10),
+    fetchRestockReminders(),
   ]);
 
   const now = new Date();
@@ -208,6 +216,8 @@ export default async function RestockPage() {
           </section>
         </div>
       )}
+
+      <RemindersSection initialReminders={reminders} />
 
       {/* ODbL attribution: desktop shows it in the shell footer (§5.4);
           mobile carries it at the bottom of this page. */}
