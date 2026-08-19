@@ -4,10 +4,12 @@
  *   1. load (or create) the caller's conversation        — RLS-scoped
  *   2. reconstruct canonical provider-neutral history    — ai_messages.parts
  *   3. persist the user message                          — append-only
- *   4. take a fresh privacy-filtered fridge snapshot
+ *   4. take ONE privacy-filtered fridge snapshot; providers receive only
+ *      the safe ref-based projection (the ref → id map stays here)
  *   5. run the provider chain (primary → fallback on transient failures,
- *      replaying the SAME canonical context)
- *   6. persist pending proposals + the assistant message
+ *      replaying the SAME canonical context and the SAME refs)
+ *   6. resolve the drafted refs back to database ids, then persist pending
+ *      proposals + the assistant message
  *
  * No fridge mutation happens anywhere on this path — proposals are stored
  * as `pending` and applied only by the explicit accept actions in
@@ -44,6 +46,9 @@ import {
 import { runWithProviderFallback } from "./failover";
 import { loadFridgeUnitsForAI } from "./inventory";
 import { buildProviderChain } from "./registry";
+import { resolveCompletionParts, resolveCompletionProposals } from "./resolve";
+import { buildTurnInventory, toInventoryUnits } from "./snapshot";
+import type { StoredProposalDraft } from "./types";
 
 /** Unknown or foreign conversation id — the route answers 400. */
 export class ConversationNotFoundError extends Error {
@@ -97,13 +102,14 @@ export async function runChatTurn(
     { type: "text", text: request.message },
   ]);
 
-  // 4. Fresh inventory snapshot (privacy filtering happens in the adapter).
-  const fridge = await loadFridgeUnitsForAI(db);
+  // 4. One snapshot per turn. The ref → database-id map (inventory) never
+  //    leaves this function; providers get only the safe projection.
+  const inventory = buildTurnInventory(await loadFridgeUnitsForAI(db));
 
   const completionRequest: AICompletionRequest = {
     conversationId: conversation.id,
     messages: [...history, userMessage],
-    fridge,
+    inventory: toInventoryUnits(inventory),
     userMessage: request.message,
   };
 
@@ -155,16 +161,41 @@ export async function runChatTurn(
     );
   }
 
-  // 6. Persist proposals (pending) + assistant message.
+  // 6. Resolve the drafted refs against the SAME snapshot they were minted
+  //    from, then persist. A resolution failure is an application bug (tools
+  //    validate refs), so it surfaces as `internal` — never as an outage.
+  let resolvedParts: AIMessagePart[];
+  let proposalDrafts: StoredProposalDraft[];
+  try {
+    resolvedParts = resolveCompletionParts(outcome.response.parts, inventory);
+    proposalDrafts = resolveCompletionProposals(
+      (outcome.response.proposals ?? []).slice(
+        0,
+        AI_LIMITS.maxProposalsPerTurn,
+      ),
+      inventory,
+    );
+  } catch (error) {
+    console.error("AI draft resolution failed:", error);
+    return {
+      status: "failed",
+      conversationId: conversation.id,
+      error: {
+        code: "internal",
+        message: "Something went wrong on our side — try again.",
+      },
+    };
+  }
+
   const proposals = await insertProposals(
     db,
     conversation.id,
     userId,
-    (outcome.response.proposals ?? []).slice(0, AI_LIMITS.maxProposalsPerTurn),
+    proposalDrafts,
   );
 
   const parts: AIMessagePart[] = [
-    ...outcome.response.parts,
+    ...resolvedParts,
     ...proposals.map((proposal): AIMessagePart => ({
       type: "action_proposal",
       proposalId: proposal.id,

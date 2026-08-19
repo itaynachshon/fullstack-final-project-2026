@@ -1,9 +1,17 @@
 /**
- * V2 domain types — FROZEN CONTRACT (agent F0).
+ * V2 domain types — FROZEN CONTRACT (agent F0), amended once by the V2
+ * convergence commit after the parallel F1/F2/F3 phase ended.
  *
  * Isolated from the Wave 1 frozen files (`src/lib/types.ts`, `src/lib/schemas.ts`)
- * so the deployed MVP does not drift. F1/F2/F3 import from `@/lib/v2` and must
- * NOT edit this file; shape changes require a coordinated commit.
+ * so the deployed MVP does not drift. Feature code imports from `@/lib/v2`;
+ * shape changes require a coordinated commit.
+ *
+ * Convergence amendment (the only post-F0 change): the AI provider boundary
+ * (`AICompletionRequest` / `AICompletionResponse`) now speaks in opaque
+ * per-turn refs (`AIInventoryUnit`, `AIRecipeDraft`, …) instead of raw
+ * fridge rows, because the F0 shape could not carry product metadata and
+ * leaked database ids into the provider layer. Persisted shapes
+ * (`AIMessagePart`, proposal payloads) are unchanged.
  *
  * Source of truth: docs/FEATURES_V2_PLAN.md.
  */
@@ -335,29 +343,92 @@ export interface V2ApiErrorBody {
   };
 }
 
-/* ─── Replaceable AI provider (F3 implements; F0 freezes the interface) ──── */
+/* ─── Replaceable AI provider (convergence-amended privacy boundary) ─────── */
+
+/**
+ * One live fridge unit as exposed to AI providers — the privacy boundary.
+ *
+ * `ref` is an opaque per-turn handle ("item_3") minted by the orchestrator;
+ * the ref → database-id mapping never leaves the server core. By
+ * construction this type cannot carry database UUIDs, user/auth ids,
+ * emails, tokens, timestamps, image URLs, lineage, history, or
+ * notification data.
+ */
+export interface AIInventoryUnit {
+  ref: string;
+  name: string;
+  brand?: string;
+  packageSize?: string;
+  category?: string;
+  remainingPercent: RemainingLevel;
+}
+
+/**
+ * Recipe ingredient as drafted by a provider: fridge matches are per-turn
+ * refs. The orchestrator resolves refs to ids before persisting the frozen
+ * `RecipeIngredient` shape.
+ */
+export interface AIIngredientDraft {
+  name: string;
+  quantity: string | null;
+  optional: boolean;
+  matchedItemRefs: string[];
+  availability: IngredientAvailability;
+}
+
+export interface AIRecipeDraft {
+  title: string;
+  servings: number | null;
+  instructions: string[];
+  ingredients: AIIngredientDraft[];
+  notes: string | null;
+}
+
+/** Draft message parts a provider may produce (ref-based, not persisted). */
+export type AICompletionPart =
+  | { type: "text"; text: string }
+  | { type: "recipe"; recipe: AIRecipeDraft }
+  | {
+      type: "missing_ingredient";
+      ingredient: AIIngredientDraft;
+      question: string;
+    };
+
+/** One drafted fridge transition; `fromPercent` is derived server-side. */
+export interface AIConsumptionDraft {
+  ref: string;
+  toPercent: RemainingLevel;
+}
+
+export interface ConsumeRecipeDraftPayload {
+  recipe: AIRecipeDraft;
+  consumptions: AIConsumptionDraft[];
+}
+
+export type AICompletionProposal =
+  | { kind: "add_item"; payload: AddItemProposalPayload }
+  | { kind: "consume_recipe"; payload: ConsumeRecipeDraftPayload };
 
 export interface AICompletionRequest {
   conversationId: string;
+  /** Canonical provider-neutral history (replayed verbatim on failover). */
   messages: AIMessage[];
-  /** Current user's live fridge, already mapped to domain types. */
-  fridge: FridgeItemWithLineage[];
+  /** Privacy-filtered snapshot of the caller's live fridge units. */
+  inventory: AIInventoryUnit[];
   userMessage: string;
 }
 
 export interface AICompletionResponse {
-  parts: AIMessagePart[];
+  parts: AICompletionPart[];
   title?: string;
-  proposals?: Array<
-    | { kind: "add_item"; payload: AddItemProposalPayload }
-    | { kind: "consume_recipe"; payload: ConsumeRecipeProposalPayload }
-  >;
+  proposals?: AICompletionProposal[];
 }
 
 /**
  * One vendor adapter. F3 registers an ordered list; the orchestrator tries
  * the next provider when `complete` throws or rejects (timeout, 5xx, parse).
- * Persistence stays provider-neutral: only `parts` are stored.
+ * Persistence stays provider-neutral: the orchestrator resolves the drafted
+ * refs back to database ids and stores only frozen `AIMessagePart`s.
  */
 export interface AIProvider {
   readonly id: string;

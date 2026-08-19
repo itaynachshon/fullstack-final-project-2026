@@ -8,33 +8,29 @@
  * - Tools never throw: failures return `{ ok: false, error }` so the model
  *   can correct itself within the step budget, and an application bug is
  *   never disguised as a provider outage.
- * - READ tools see only the opaque-ref snapshot. There is no mutation tool:
- *   propose* tools stash payloads that the orchestrator persists as PENDING
- *   `ai_action_proposals`; fridge rows change only after the user accepts.
- * - The model works with per-turn refs ("item_3"); the mapping back to
- *   database UUIDs happens here, server-side.
+ * - Tools see ONLY the opaque-ref snapshot — there is no database id in the
+ *   provider layer at all. Drafts stay ref-based; the orchestrator resolves
+ *   them to ids (src/lib/ai/resolve.ts) after the turn.
+ * - There is no mutation tool: propose* tools stash drafts that the
+ *   orchestrator persists as PENDING `ai_action_proposals`; fridge rows
+ *   change only after the user accepts.
+ * - The model-facing input schemas mirror the frozen persisted bounds
+ *   (src/lib/v2/schemas.ts); resolved payloads are re-validated against the
+ *   frozen schemas before persistence.
  */
 
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 
 import { CATEGORIES, REMAINING_LEVELS } from "@/lib/types";
-import {
-  addItemProposalPayloadSchema,
-  consumeRecipeProposalPayloadSchema,
-  recipeSchema,
-} from "@/lib/v2/schemas";
-import type {
-  ConsumptionProposal,
-  Recipe,
-  RecipeIngredient,
-} from "@/lib/v2/types";
+import { addItemProposalPayloadSchema } from "@/lib/v2/schemas";
+import type { AIIngredientDraft, AIRecipeDraft } from "@/lib/v2/types";
 
 import { AI_LIMITS } from "./config";
-import { findMatches, serializeItemsForTool } from "./snapshot";
+import { findMatches } from "./snapshot";
 import type { TurnState } from "./types";
 
-/* ─── Model-facing schemas (refs instead of UUIDs) ────────────────────────── */
+/* ─── Model-facing schemas (refs instead of database ids) ─────────────────── */
 
 const itemRefSchema = z
   .string()
@@ -122,8 +118,8 @@ export function createChatTools(turn: TurnState): ToolSet {
       inputSchema: z.object({}),
       execute: () => ({
         ok: true,
-        items: serializeItemsForTool(turn.inventory.items),
-        unitCount: turn.inventory.items.length,
+        items: turn.inventory.units,
+        unitCount: turn.inventory.units.length,
       }),
     }),
 
@@ -135,10 +131,10 @@ export function createChatTools(turn: TurnState): ToolSet {
         "still exist at home, so treat it as UNCERTAIN, not absent.",
       inputSchema: findFridgeItemsSchema,
       execute: ({ query }) => {
-        const matches = findMatches(turn.inventory, query);
+        const matches = findMatches(turn.inventory.units, query);
         return {
           ok: true,
-          matches: serializeItemsForTool(matches),
+          matches,
           matchCount: matches.length,
         };
       },
@@ -157,7 +153,7 @@ export function createChatTools(turn: TurnState): ToolSet {
           if (budget) return budget;
 
           const notes: string[] = [];
-          const ingredients: RecipeIngredient[] = [];
+          const ingredients: AIIngredientDraft[] = [];
 
           for (const raw of input.ingredients) {
             const refs = raw.matchedItemRefs ?? [];
@@ -170,18 +166,15 @@ export function createChatTools(turn: TurnState): ToolSet {
                   "getFridgeInventory and use only refs it returned.",
               );
             }
-            const matchedItemIds = refs.map(
-              (ref) => turn.inventory.byRef.get(ref)!.itemId,
-            );
 
             let availability = raw.availability;
-            if (matchedItemIds.length > 0 && availability === "missing") {
+            if (refs.length > 0 && availability === "missing") {
               availability = "have";
               notes.push(
                 `"${raw.name}": marked missing but matched fridge items — recorded as have.`,
               );
             }
-            if (matchedItemIds.length === 0 && availability === "have") {
+            if (refs.length === 0 && availability === "have") {
               availability = "unconfirmed";
               notes.push(
                 `"${raw.name}": marked have without matchedItemRefs — recorded as unconfirmed.`,
@@ -192,12 +185,12 @@ export function createChatTools(turn: TurnState): ToolSet {
               name: raw.name,
               quantity: raw.quantity ?? null,
               optional: raw.optional ?? false,
-              matchedItemIds,
+              matchedItemRefs: refs,
               availability,
             });
           }
 
-          const recipe: Recipe = {
+          const recipe: AIRecipeDraft = {
             title: input.title,
             servings: input.servings ?? null,
             instructions: input.instructions,
@@ -205,13 +198,8 @@ export function createChatTools(turn: TurnState): ToolSet {
             notes: input.notes ?? null,
           };
 
-          const parsed = recipeSchema.safeParse(recipe);
-          if (!parsed.success) {
-            return failure("Recipe failed validation — simplify and retry.");
-          }
-
-          turn.turnRecipes.push(parsed.data);
-          turn.parts.push({ type: "recipe", recipe: parsed.data });
+          turn.turnRecipes.push(recipe);
+          turn.parts.push({ type: "recipe", recipe });
           return {
             ok: true,
             message:
@@ -236,11 +224,11 @@ export function createChatTools(turn: TurnState): ToolSet {
           const budget = partBudgetExceeded();
           if (budget) return budget;
 
-          const ingredient: RecipeIngredient = {
+          const ingredient: AIIngredientDraft = {
             name: input.name,
             quantity: input.quantity ?? null,
             optional: false,
-            matchedItemIds: [],
+            matchedItemRefs: [],
             availability: input.availability,
           };
           turn.parts.push({
@@ -314,11 +302,15 @@ export function createChatTools(turn: TurnState): ToolSet {
 
           const seenRefs = new Set<string>();
           const problems: string[] = [];
-          const consumptions: ConsumptionProposal[] = [];
+          const consumptions: Array<{
+            ref: string;
+            toPercent: (typeof REMAINING_LEVELS)[number];
+          }> = [];
+          const labels: string[] = [];
 
           for (const entry of input.consumptions) {
-            const item = turn.inventory.byRef.get(entry.itemRef);
-            if (!item) {
+            const unit = turn.inventory.byRef.get(entry.itemRef);
+            if (!unit) {
               problems.push(`${entry.itemRef}: unknown ref.`);
               continue;
             }
@@ -327,46 +319,35 @@ export function createChatTools(turn: TurnState): ToolSet {
               continue;
             }
             seenRefs.add(entry.itemRef);
-            if (entry.toPercent >= item.remainingPercent) {
+            if (entry.toPercent >= unit.remainingPercent) {
               problems.push(
-                `${entry.itemRef}: is at ${item.remainingPercent}%; propose ` +
+                `${entry.itemRef}: is at ${unit.remainingPercent}%; propose ` +
                   "a lower remaining level.",
               );
               continue;
             }
             consumptions.push({
-              itemId: item.itemId,
-              productName: item.name,
-              fromPercent: item.remainingPercent,
+              ref: entry.itemRef,
               toPercent: entry.toPercent,
             });
+            labels.push(
+              `${unit.name} ${unit.remainingPercent}% → ${entry.toPercent}%`,
+            );
           }
 
           if (problems.length > 0) {
             return failure(`Fix these and retry: ${problems.join(" ")}`);
           }
 
-          const parsed = consumeRecipeProposalPayloadSchema.safeParse({
-            recipe,
-            consumptions,
-          });
-          if (!parsed.success) {
-            return failure("Consumption payload failed validation.");
-          }
-
           turn.proposals.push({
             kind: "consume_recipe",
-            payload: parsed.data,
+            payload: { recipe, consumptions },
           });
           return {
             ok: true,
             message:
               "Consumption proposal prepared (pending): " +
-              consumptions
-                .map(
-                  (c) => `${c.productName} ${c.fromPercent}% → ${c.toPercent}%`,
-                )
-                .join(", ") +
+              labels.join(", ") +
               ". The user must confirm it — do not claim the fridge changed.",
           };
         } catch (error) {

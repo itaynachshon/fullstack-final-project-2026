@@ -1,8 +1,13 @@
 /**
- * Generic Vercel AI SDK adapter — implements the frozen `AIProvider`
- * interface for ANY AI SDK language model. Google/Groq (and later
- * OpenRouter & co.) differ only in the `model` instance the registry passes
- * in; conversation/business logic never touches vendor SDKs.
+ * Generic Vercel AI SDK adapter — implements the `AIProvider` interface for
+ * ANY AI SDK language model. Google/Groq (and later OpenRouter & co.)
+ * differ only in the `model` instance the registry passes in;
+ * conversation/business logic never touches vendor SDKs.
+ *
+ * The adapter works entirely inside the privacy boundary: the request's
+ * `inventory` is the safe ref-based snapshot (no database ids exist in this
+ * layer), and everything it returns is a ref-based draft that the
+ * orchestrator resolves before persistence.
  *
  * One `complete()` call runs the full agentic turn: system prompt with the
  * inventory snapshot, bounded canonical history, provider-neutral tools,
@@ -12,21 +17,17 @@
 import { generateText, stepCountIs, type LanguageModel } from "ai";
 
 import type {
+  AICompletionPart,
   AICompletionRequest,
   AICompletionResponse,
-  AIMessagePart,
   AIProvider,
 } from "@/lib/v2/types";
 
 import { AI_LIMITS } from "./config";
 import { TransientProviderError } from "./errors";
-import { extractHistoryRecipes, toBoundedModelMessages } from "./messages";
+import { extractHistoryRecipeDrafts, toBoundedModelMessages } from "./messages";
 import { buildSystemPrompt } from "./prompt";
-import {
-  buildTurnInventory,
-  hasProduct,
-  serializeInventoryForModel,
-} from "./snapshot";
+import { buildProviderInventory, serializeInventoryForModel } from "./snapshot";
 import { createChatTools } from "./tools";
 import type { TurnState } from "./types";
 
@@ -51,20 +52,9 @@ export function createVercelAIProvider(
       request: AICompletionRequest,
       signal?: AbortSignal,
     ): Promise<AICompletionResponse> {
-      // Narrow the frozen fridge type to units that carry their product
-      // embed (contract gap documented in src/lib/ai/types.ts).
-      const units = request.fridge.filter(hasProduct);
-      if (units.length !== request.fridge.length) {
-        console.warn(
-          `AI provider ${options.id}: ${request.fridge.length - units.length} ` +
-            "fridge unit(s) without product embed were skipped.",
-        );
-      }
-
-      const inventory = buildTurnInventory(units);
       const turn: TurnState = {
-        inventory,
-        historyRecipes: extractHistoryRecipes(request.messages),
+        inventory: buildProviderInventory(request.inventory),
+        historyRecipes: extractHistoryRecipeDrafts(request.messages),
         turnRecipes: [],
         parts: [],
         proposals: [],
@@ -72,8 +62,10 @@ export function createVercelAIProvider(
 
       const result = await generateText({
         model: options.model,
-        system: buildSystemPrompt(serializeInventoryForModel(inventory)),
-        messages: toBoundedModelMessages(request.messages, inventory),
+        system: buildSystemPrompt(
+          serializeInventoryForModel(request.inventory),
+        ),
+        messages: toBoundedModelMessages(request.messages),
         tools: createChatTools(turn),
         stopWhen: stepCountIs(AI_LIMITS.maxSteps),
         maxOutputTokens: options.maxOutputTokens,
@@ -84,7 +76,7 @@ export function createVercelAIProvider(
         maxRetries: 0,
       });
 
-      const parts: AIMessagePart[] = [...turn.parts];
+      const parts: AICompletionPart[] = [...turn.parts];
       const text = result.text.trim();
       if (text.length > 0) {
         parts.push({ type: "text", text: text.slice(0, MAX_TEXT_PART_CHARS) });

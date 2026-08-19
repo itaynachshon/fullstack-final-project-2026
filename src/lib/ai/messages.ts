@@ -6,37 +6,56 @@
  * is ever deleted: when old messages fall outside the window, a synthetic
  * system note tells the model that earlier context was omitted.
  *
+ * Stored parts may contain database ids (`matchedItemIds`, `proposalId`).
+ * Those are NEVER rendered: providers only ever see per-turn refs, and the
+ * adapter has no id → ref mapping by design. The model re-derives current
+ * matches from the snapshot in its system prompt or via findFridgeItems.
+ *
  * Structured parts are rendered deterministically so a failover replays a
  * byte-identical context to the next provider.
  */
 
 import type { ModelMessage } from "ai";
 
-import type { AIMessage, AIMessagePart, Recipe } from "@/lib/v2/types";
+import type { AIMessage, AIMessagePart, AIRecipeDraft } from "@/lib/v2/types";
 
 import { AI_LIMITS } from "./config";
-import type { TurnInventory } from "./types";
 
-/** Recipes from prior assistant messages, oldest → newest. */
-export function extractHistoryRecipes(messages: AIMessage[]): Recipe[] {
-  const recipes: Recipe[] = [];
+/**
+ * Recipes from prior assistant messages (oldest → newest), converted to the
+ * ref-based draft shape the tools work with. Stored `matchedItemIds` are
+ * database ids from an EARLIER turn; they cannot be mapped to this turn's
+ * refs inside the provider layer, so the embedded copies carry no matches —
+ * `availability` still tells the model what the user had.
+ */
+export function extractHistoryRecipeDrafts(
+  messages: AIMessage[],
+): AIRecipeDraft[] {
+  const recipes: AIRecipeDraft[] = [];
   for (const message of messages) {
     if (message.role !== "assistant") continue;
     for (const part of message.parts) {
-      if (part.type === "recipe") recipes.push(part.recipe);
+      if (part.type !== "recipe") continue;
+      recipes.push({
+        title: part.recipe.title,
+        servings: part.recipe.servings,
+        instructions: part.recipe.instructions,
+        ingredients: part.recipe.ingredients.map((ingredient) => ({
+          name: ingredient.name,
+          quantity: ingredient.quantity,
+          optional: ingredient.optional,
+          matchedItemRefs: [],
+          availability: ingredient.availability,
+        })),
+        notes: part.recipe.notes,
+      });
     }
   }
   return recipes;
 }
 
-/**
- * Renders one stored part as text for the model. Item UUIDs are translated
- * to the CURRENT turn's refs where the unit still exists; otherwise omitted.
- */
-export function renderPartForModel(
-  part: AIMessagePart,
-  inventory: TurnInventory,
-): string {
+/** Renders one stored part as text for the model. Database ids are omitted. */
+export function renderPartForModel(part: AIMessagePart): string {
   switch (part.type) {
     case "text":
       return part.text;
@@ -44,13 +63,9 @@ export function renderPartForModel(
       const recipe = part.recipe;
       const ingredients = recipe.ingredients
         .map((ingredient) => {
-          const refs = ingredient.matchedItemIds
-            .map((id) => inventory.byItemId.get(id)?.ref)
-            .filter((ref): ref is string => Boolean(ref));
           const bits = [
             ingredient.quantity,
             ingredient.availability,
-            refs.length > 0 ? refs.join(",") : null,
             ingredient.optional ? "optional" : null,
           ]
             .filter(Boolean)
@@ -80,12 +95,12 @@ export function renderPartForModel(
   }
 }
 
-function renderMessage(
-  message: AIMessage,
-  inventory: TurnInventory,
-): { role: "user" | "assistant" | "system"; content: string } {
+function renderMessage(message: AIMessage): {
+  role: "user" | "assistant" | "system";
+  content: string;
+} {
   const content = message.parts
-    .map((part) => renderPartForModel(part, inventory))
+    .map((part) => renderPartForModel(part))
     .filter((text) => text.length > 0)
     .join("\n\n");
   return { role: message.role, content };
@@ -97,7 +112,6 @@ function renderMessage(
  */
 export function toBoundedModelMessages(
   messages: AIMessage[],
-  inventory: TurnInventory,
   limits: {
     maxMessages: number;
     maxChars: number;
@@ -107,7 +121,7 @@ export function toBoundedModelMessages(
   },
 ): ModelMessage[] {
   const rendered = messages
-    .map((message) => renderMessage(message, inventory))
+    .map((message) => renderMessage(message))
     .filter((message) => message.content.length > 0);
 
   const window: typeof rendered = [];

@@ -1,23 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  extractHistoryRecipes,
+  extractHistoryRecipeDrafts,
   renderPartForModel,
   toBoundedModelMessages,
 } from "./messages";
-import { buildTurnInventory } from "./snapshot";
 import {
   EGGS_ITEM_ID,
-  makeFridge,
   makeMessage,
   SHAKSHUKA_RECIPE,
   textMessage,
 } from "./test-fixtures";
 
-const inventory = buildTurnInventory(makeFridge());
-
-describe("extractHistoryRecipes", () => {
-  it("collects recipe parts from assistant messages only", () => {
+describe("extractHistoryRecipeDrafts", () => {
+  it("collects recipes from assistant messages as ref-based drafts", () => {
     const messages = [
       textMessage("user", "shakshuka please"),
       makeMessage("assistant", [
@@ -25,50 +21,62 @@ describe("extractHistoryRecipes", () => {
         { type: "recipe", recipe: SHAKSHUKA_RECIPE },
       ]),
     ];
-    const recipes = extractHistoryRecipes(messages);
-    expect(recipes).toHaveLength(1);
-    expect(recipes[0].title).toBe("Shakshuka");
+    const drafts = extractHistoryRecipeDrafts(messages);
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0].title).toBe("Shakshuka");
+    // Stored matchedItemIds are prior-turn database ids — they never enter
+    // the provider layer. Availability survives; matches are dropped.
+    expect(drafts[0].ingredients.map((i) => i.availability)).toEqual([
+      "have",
+      "have",
+      "unconfirmed",
+    ]);
+    for (const ingredient of drafts[0].ingredients) {
+      expect(ingredient.matchedItemRefs).toEqual([]);
+    }
+    expect(JSON.stringify(drafts)).not.toContain(EGGS_ITEM_ID);
+  });
+
+  it("ignores user messages and non-recipe parts", () => {
+    expect(extractHistoryRecipeDrafts([textMessage("user", "hello")])).toEqual(
+      [],
+    );
   });
 });
 
 describe("renderPartForModel", () => {
-  it("renders recipes with CURRENT turn refs instead of UUIDs", () => {
-    const rendered = renderPartForModel(
-      { type: "recipe", recipe: SHAKSHUKA_RECIPE },
-      inventory,
-    );
+  it("renders stored recipes without any database UUIDs", () => {
+    const rendered = renderPartForModel({
+      type: "recipe",
+      recipe: SHAKSHUKA_RECIPE,
+    });
     expect(rendered).toContain("Shakshuka");
-    expect(rendered).toContain("item_2"); // Eggs uuid → this turn's ref
+    expect(rendered).toContain("Eggs");
+    expect(rendered).toContain("have");
     expect(rendered).not.toContain(EGGS_ITEM_ID);
     expect(rendered).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
   });
 
   it("renders questions and proposal markers compactly", () => {
     expect(
-      renderPartForModel(
-        {
-          type: "missing_ingredient",
-          ingredient: {
-            name: "Onion",
-            quantity: null,
-            optional: false,
-            matchedItemIds: [],
-            availability: "unconfirmed",
-          },
-          question: "Do you have onions?",
+      renderPartForModel({
+        type: "missing_ingredient",
+        ingredient: {
+          name: "Onion",
+          quantity: null,
+          optional: false,
+          matchedItemIds: [],
+          availability: "unconfirmed",
         },
-        inventory,
-      ),
+        question: "Do you have onions?",
+      }),
     ).toContain("Do you have onions?");
 
-    const marker = renderPartForModel(
-      {
-        type: "action_proposal",
-        proposalId: "77777777-7777-4777-8777-777777777777",
-        kind: "add_item",
-      },
-      inventory,
-    );
+    const marker = renderPartForModel({
+      type: "action_proposal",
+      proposalId: "77777777-7777-4777-8777-777777777777",
+      kind: "add_item",
+    });
     expect(marker).toContain("confirmation");
     expect(marker).not.toContain("77777777");
   });
@@ -80,7 +88,7 @@ describe("toBoundedModelMessages", () => {
       textMessage("user", "hi"),
       textMessage("assistant", "hello"),
     ];
-    const modelMessages = toBoundedModelMessages(messages, inventory);
+    const modelMessages = toBoundedModelMessages(messages);
     expect(modelMessages).toHaveLength(2);
     expect(modelMessages[0]).toEqual({ role: "user", content: "hi" });
   });
@@ -89,7 +97,7 @@ describe("toBoundedModelMessages", () => {
     const messages = Array.from({ length: 10 }, (_, i) =>
       textMessage(i % 2 === 0 ? "user" : "assistant", `message ${i}`),
     );
-    const modelMessages = toBoundedModelMessages(messages, inventory, {
+    const modelMessages = toBoundedModelMessages(messages, {
       maxMessages: 4,
       maxChars: 10_000,
     });
@@ -105,7 +113,7 @@ describe("toBoundedModelMessages", () => {
       textMessage("assistant", "b".repeat(400)),
       textMessage("user", "c".repeat(400)),
     ];
-    const bounded = toBoundedModelMessages(messages, inventory, {
+    const bounded = toBoundedModelMessages(messages, {
       maxMessages: 30,
       maxChars: 500,
     });
@@ -114,8 +122,10 @@ describe("toBoundedModelMessages", () => {
 
     const huge = toBoundedModelMessages(
       [textMessage("user", "x".repeat(9_000))],
-      inventory,
-      { maxMessages: 30, maxChars: 500 },
+      {
+        maxMessages: 30,
+        maxChars: 500,
+      },
     );
     expect(huge).toHaveLength(1);
   });

@@ -2,33 +2,25 @@
  * Fridge inventory snapshot for one chat turn — the privacy boundary between
  * the user's data and AI vendors.
  *
- * Only recipe-relevant fields are serialized: product name, brand, package
- * size, category, per-unit remaining percentage. Database UUIDs are replaced
- * by opaque per-turn refs ("item_3"); user ids, emails, timestamps, image
- * URLs, and lineage never reach a provider.
+ * The ORCHESTRATOR builds the snapshot once per turn (`buildTurnInventory`)
+ * and keeps the ref → database-id mapping to itself; providers receive only
+ * the safe projection (`toInventoryUnits`): opaque per-turn refs ("item_3"),
+ * product name, brand, package size, category, and per-unit remaining
+ * percentage. Database UUIDs, user ids, emails, timestamps, image URLs, and
+ * lineage never enter a provider request.
  *
- * The snapshot is taken once per turn and is immutable: a failover replays
- * the exact same context to the next provider.
+ * Because the snapshot is taken once and is immutable, a failover replays
+ * the exact same refs and context to the next provider.
  */
 
-import type { FridgeItemWithLineage } from "@/lib/v2/types";
+import type { AIInventoryUnit } from "@/lib/v2/types";
 
-import type { AIFridgeUnit, SnapshotItem, TurnInventory } from "./types";
-
-/**
- * Narrows the frozen `AICompletionRequest.fridge` element to a unit that
- * actually carries its product embed (see src/lib/ai/types.ts for the
- * documented contract gap).
- */
-export function hasProduct(item: FridgeItemWithLineage): item is AIFridgeUnit {
-  if (!("product" in item)) return false;
-  const product = (item as AIFridgeUnit).product;
-  return (
-    typeof product === "object" &&
-    product !== null &&
-    typeof product.name === "string"
-  );
-}
+import type {
+  AIFridgeUnit,
+  ProviderInventory,
+  SnapshotItem,
+  TurnInventory,
+} from "./types";
 
 /**
  * Builds the per-turn inventory: live units only (remaining > 0), ordered
@@ -56,24 +48,12 @@ export function buildTurnInventory(units: AIFridgeUnit[]): TurnInventory {
   return {
     items,
     byRef: new Map(items.map((item) => [item.ref, item])),
-    byItemId: new Map(items.map((item) => [item.itemId, item])),
   };
 }
 
-/** Model-facing JSON shape for tool results (no UUIDs by construction). */
-export interface SerializedSnapshotItem {
-  ref: string;
-  name: string;
-  brand?: string;
-  packageSize?: string;
-  category: string;
-  remainingPercent: number;
-}
-
-export function serializeItemsForTool(
-  items: SnapshotItem[],
-): SerializedSnapshotItem[] {
-  return items.map((item) => ({
+/** Safe projection handed to providers — drops the database id entirely. */
+export function toInventoryUnits(inventory: TurnInventory): AIInventoryUnit[] {
+  return inventory.items.map((item) => ({
     ref: item.ref,
     name: item.name,
     ...(item.brand ? { brand: item.brand } : {}),
@@ -83,16 +63,27 @@ export function serializeItemsForTool(
   }));
 }
 
+/** Ref-keyed lookup the provider adapter builds from the safe units. */
+export function buildProviderInventory(
+  units: AIInventoryUnit[],
+): ProviderInventory {
+  return {
+    units,
+    byRef: new Map(units.map((unit) => [unit.ref, unit])),
+  };
+}
+
 /** Compact plain-text rendering for the system prompt. */
-export function serializeInventoryForModel(inventory: TurnInventory): string {
-  if (inventory.items.length === 0) {
+export function serializeInventoryForModel(units: AIInventoryUnit[]): string {
+  if (units.length === 0) {
     return "The fridge is empty (no live units).";
   }
-  return inventory.items
-    .map((item) => {
-      const details = [item.brand, item.packageSize].filter(Boolean).join(", ");
-      const label = details ? `${item.name} (${details})` : item.name;
-      return `- ${item.ref}: ${label} — ${item.category} — ${item.remainingPercent}% remaining`;
+  return units
+    .map((unit) => {
+      const details = [unit.brand, unit.packageSize].filter(Boolean).join(", ");
+      const label = details ? `${unit.name} (${details})` : unit.name;
+      const category = unit.category ? ` — ${unit.category}` : "";
+      return `- ${unit.ref}: ${label}${category} — ${unit.remainingPercent}% remaining`;
     })
     .join("\n");
 }
@@ -102,13 +93,13 @@ export function serializeInventoryForModel(inventory: TurnInventory): string {
  * somewhere in the unit's text. Case-insensitive; works for Hebrew (no case).
  */
 export function findMatches(
-  inventory: TurnInventory,
+  units: AIInventoryUnit[],
   query: string,
-): SnapshotItem[] {
+): AIInventoryUnit[] {
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return [];
-  return inventory.items.filter((item) => {
-    const haystack = [item.name, item.brand ?? "", item.category]
+  return units.filter((unit) => {
+    const haystack = [unit.name, unit.brand ?? "", unit.category ?? ""]
       .join(" ")
       .toLowerCase();
     return tokens.every((token) => haystack.includes(token));

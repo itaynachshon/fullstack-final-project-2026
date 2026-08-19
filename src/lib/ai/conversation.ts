@@ -26,7 +26,7 @@ import type {
   AIMessagePart,
 } from "@/lib/v2/types";
 
-import type { ProposalDraft } from "./types";
+import type { StoredProposalDraft } from "./types";
 
 export type DbClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -285,7 +285,7 @@ export async function insertProposals(
   db: DbClient,
   conversationId: string,
   userId: string,
-  drafts: ProposalDraft[],
+  drafts: StoredProposalDraft[],
 ): Promise<AIActionProposal[]> {
   if (drafts.length === 0) return [];
   const rows = drafts.map((draft) => ({

@@ -306,3 +306,67 @@ describe("V2 foundation migration contract", () => {
     expect(sql).toContain("grant update (status, updated_at)");
   });
 });
+
+describe("V2 convergence migration — last_sent_key is scheduler-owned", () => {
+  const sql = readFileSync(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../supabase/migrations/20260819000000_v2_reminder_column_privileges.sql",
+    ),
+    "utf8",
+  );
+
+  it("replaces the broad reminder INSERT/UPDATE grants with column lists", () => {
+    expect(sql).toMatch(
+      /revoke insert, update\s+on table public\.restock_reminders\s+from authenticated/,
+    );
+    expect(sql).toMatch(/grant insert \(/);
+    expect(sql).toMatch(/grant update \(/);
+  });
+
+  it("never grants last_sent_key (or identity columns) to clients", () => {
+    // Parse each grant's column list into exact column names.
+    const grants = [...sql.matchAll(/grant (\w+) \(([^)]*)\)/g)].map(
+      (match) => ({
+        verb: match[1],
+        columns: match[2]
+          .split(",")
+          .map((column) => column.trim())
+          .filter(Boolean),
+      }),
+    );
+    expect(grants.map((grant) => grant.verb)).toEqual(["insert", "update"]);
+
+    const editable = [
+      "days_of_week",
+      "local_time",
+      "timezone",
+      "enabled",
+      "email_enabled",
+      "in_app_enabled",
+    ];
+    for (const grant of grants) {
+      for (const forbidden of ["last_sent_key", "id", "created_at"]) {
+        expect(grant.columns).not.toContain(forbidden);
+      }
+      for (const column of editable) {
+        expect(grant.columns).toContain(column);
+      }
+    }
+
+    const [insert, update] = grants;
+    // INSERT must still allow user_id (RLS pins its value to auth.uid()).
+    expect(insert.columns).toContain("user_id");
+    // UPDATE must not allow re-parenting; it must allow the action's
+    // updated_at stamp.
+    expect(update.columns).not.toContain("user_id");
+    expect(update.columns).toContain("updated_at");
+  });
+
+  it("is additive — it never rewrites the foundation migration", () => {
+    expect(sql).not.toContain("drop table");
+    expect(sql).not.toContain("alter table");
+    expect(sql).not.toContain("drop policy");
+    expect(sql).not.toContain("create table");
+  });
+});

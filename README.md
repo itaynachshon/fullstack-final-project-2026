@@ -123,7 +123,7 @@ The `SUPABASE_SERVICE_ROLE_KEY` is used ONLY by the local catalog seed script
 
 ### 2. Apply the database migrations
 
-There are four migrations, applied in filename order:
+There are five migrations, applied in filename order:
 
 | Migration                               | What it does                                                           |
 | --------------------------------------- | ---------------------------------------------------------------------- |
@@ -131,6 +131,7 @@ There are four migrations, applied in filename order:
 | `20260816000000_security_hardening.sql` | consumption-event ownership policy + `image_url` CHECK (Wave 5 fix)   |
 | `20260816000100_data_api_grants.sql`    | explicit Data API grants (required on Supabase projects created ≥ 2026) |
 | `20260818000000_v2_foundation.sql`      | V2 lineage FK, reminder/notification/AI tables + RLS (see `docs/FEATURES_V2_PLAN.md`) |
+| `20260819000000_v2_reminder_column_privileges.sql` | column-scoped reminder grants — `last_sent_key` becomes scheduler-only (see `docs/SECURITY.md` §21) |
 
 Option A — Supabase CLI (recommended):
 

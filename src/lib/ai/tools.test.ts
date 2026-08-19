@@ -2,22 +2,20 @@ import type { ToolSet } from "ai";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 
-import type { Recipe } from "@/lib/v2/types";
+import type { AIRecipeDraft } from "@/lib/v2/types";
 
-import { buildTurnInventory } from "./snapshot";
+import { buildProviderInventory } from "./snapshot";
 import {
-  EGGS_ITEM_ID,
-  makeFridge,
+  makeInventoryUnits,
   MILK_ITEM_ID,
-  SHAKSHUKA_RECIPE,
-  TOMATO_ITEM_ID,
+  SHAKSHUKA_RECIPE_DRAFT,
 } from "./test-fixtures";
 import { createChatTools } from "./tools";
 import type { TurnState } from "./types";
 
-function makeTurn(historyRecipes: Recipe[] = []): TurnState {
+function makeTurn(historyRecipes: AIRecipeDraft[] = []): TurnState {
   return {
-    inventory: buildTurnInventory(makeFridge()),
+    inventory: buildProviderInventory(makeInventoryUnits()),
     historyRecipes,
     turnRecipes: [],
     parts: [],
@@ -40,8 +38,8 @@ function inputSchemaOf(tools: ToolSet, name: string): z.ZodTypeAny {
   return (tools[name] as unknown as { inputSchema: z.ZodTypeAny }).inputSchema;
 }
 
-// Refs for makeFridge(): item_1 = Milk 100%, item_2 = Eggs 75%,
-// item_3 = Tomatoes 50% (finished yogurt excluded).
+// Refs for makeInventoryUnits(): item_1 = Milk 100%, item_2 = Eggs 75%,
+// item_3 = Tomatoes 50%.
 
 const MODEL_RECIPE_INPUT = {
   title: "Shakshuka",
@@ -77,6 +75,7 @@ describe("read tools", () => {
     const serialized = JSON.stringify(result);
     expect(serialized).toContain("item_1");
     expect(serialized).not.toContain(MILK_ITEM_ID);
+    expect(serialized).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
   });
 
   it("findFridgeItems finds matches and returns empty for unknowns", async () => {
@@ -89,7 +88,7 @@ describe("read tools", () => {
 });
 
 describe("proposeRecipe", () => {
-  it("maps refs to item UUIDs and stashes a valid frozen recipe part", async () => {
+  it("stashes a ref-based recipe draft (no database ids in the tool layer)", async () => {
     const turn = makeTurn();
     const result = await runTool(
       createChatTools(turn),
@@ -101,10 +100,11 @@ describe("proposeRecipe", () => {
     const part = turn.parts[0];
     if (part.type !== "recipe") throw new Error("expected recipe part");
     expect(part.recipe.title).toBe("Shakshuka");
-    expect(part.recipe.ingredients[0].matchedItemIds).toEqual([EGGS_ITEM_ID]);
-    expect(part.recipe.ingredients[1].matchedItemIds).toEqual([TOMATO_ITEM_ID]);
+    expect(part.recipe.ingredients[0].matchedItemRefs).toEqual(["item_2"]);
+    expect(part.recipe.ingredients[1].matchedItemRefs).toEqual(["item_3"]);
     expect(part.recipe.ingredients[2].availability).toBe("unconfirmed");
     expect(turn.turnRecipes).toHaveLength(1);
+    expect(JSON.stringify(turn)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
   });
 
   it("rejects unknown refs with a corrective error (no throw)", async () => {
@@ -220,7 +220,7 @@ describe("proposeConsumption", () => {
     expect(String(result.error)).toContain("recipe");
   });
 
-  it("builds server-derived transitions from the snapshot", async () => {
+  it("stashes validated ref drafts — id/fromPercent stay server-side", async () => {
     const turn = makeTurn();
     const tools = createChatTools(turn);
     await runTool(tools, "proposeRecipe", MODEL_RECIPE_INPUT);
@@ -232,37 +232,23 @@ describe("proposeConsumption", () => {
       ],
     });
     expect(result.ok).toBe(true);
+    // The confirmation message shows snapshot-derived transitions.
     expect(String(result.message)).toContain("Milk 100% → 75%");
 
     const proposal = turn.proposals.find((p) => p.kind === "consume_recipe");
     if (proposal?.kind !== "consume_recipe")
       throw new Error("missing proposal");
-    // fromPercent comes from the snapshot, NOT from the model.
     expect(proposal.payload.consumptions).toEqual([
-      {
-        itemId: MILK_ITEM_ID,
-        productName: "Milk",
-        fromPercent: 100,
-        toPercent: 75,
-      },
-      {
-        itemId: EGGS_ITEM_ID,
-        productName: "Eggs",
-        fromPercent: 75,
-        toPercent: 50,
-      },
-      {
-        itemId: TOMATO_ITEM_ID,
-        productName: "Tomatoes",
-        fromPercent: 50,
-        toPercent: 0,
-      },
+      { ref: "item_1", toPercent: 75 },
+      { ref: "item_2", toPercent: 50 },
+      { ref: "item_3", toPercent: 0 },
     ]);
     expect(proposal.payload.recipe.title).toBe("Shakshuka");
+    expect(JSON.stringify(proposal)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
   });
 
   it("falls back to a recipe from conversation history", async () => {
-    const turn = makeTurn([SHAKSHUKA_RECIPE]);
+    const turn = makeTurn([SHAKSHUKA_RECIPE_DRAFT]);
     const tools = createChatTools(turn);
     const result = await runTool(tools, "proposeConsumption", {
       consumptions: [{ itemRef: "item_2", toPercent: 25 }],
@@ -274,7 +260,7 @@ describe("proposeConsumption", () => {
   });
 
   it("rejects non-decreasing levels, unknown refs, and duplicates", async () => {
-    const turn = makeTurn([SHAKSHUKA_RECIPE]);
+    const turn = makeTurn([SHAKSHUKA_RECIPE_DRAFT]);
     const tools = createChatTools(turn);
     const result = await runTool(tools, "proposeConsumption", {
       consumptions: [

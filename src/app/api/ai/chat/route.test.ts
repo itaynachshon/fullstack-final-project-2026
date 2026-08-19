@@ -298,10 +298,22 @@ describe("POST /api/ai/chat turns", () => {
     // The chat turn may never mutate fridge rows.
     expect(fridgeWrites()).toHaveLength(0);
 
-    // The provider saw the mapped snapshot (fresh inventory, live units).
+    // The provider saw ONLY the safe ref-based projection of the fridge.
     expect(google.calls).toHaveLength(1);
-    expect(google.calls[0].fridge).toHaveLength(1);
-    expect(google.calls[0].fridge[0]).toMatchObject({ id: MILK_ITEM_ID });
+    expect(google.calls[0].inventory).toEqual([
+      {
+        ref: "item_1",
+        name: "Milk",
+        brand: "Tnuva",
+        packageSize: "1L",
+        category: "Dairy",
+        remainingPercent: 100,
+      },
+    ]);
+    const inventoryWire = JSON.stringify(google.calls[0].inventory);
+    expect(inventoryWire).not.toContain(MILK_ITEM_ID);
+    expect(inventoryWire).not.toContain(USER_ID);
+    expect(inventoryWire).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i);
   });
 
   it("falls back to the next provider and replays identical history", async () => {
@@ -322,9 +334,9 @@ describe("POST /api/ai/chat turns", () => {
     expect(body.status).toBe("ok");
     expect(google.calls).toHaveLength(1);
     expect(groq.calls).toHaveLength(1);
-    // The SAME canonical context reached both vendors.
+    // The SAME canonical context and snapshot reached both vendors.
     expect(google.canonicalSnapshots[0]).toBe(groq.canonicalSnapshots[0]);
-    expect(google.calls[0].fridge).toEqual(groq.calls[0].fridge);
+    expect(google.calls[0].inventory).toEqual(groq.calls[0].inventory);
   });
 
   it("reports provider_unavailable when every provider fails transiently", async () => {

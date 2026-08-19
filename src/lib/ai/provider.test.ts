@@ -7,10 +7,8 @@ import { TransientProviderError } from "./errors";
 import { createVercelAIProvider } from "./provider";
 import {
   CONVERSATION_ID,
-  EGGS_ITEM_ID,
-  makeFridge,
+  makeInventoryUnits,
   makeMessage,
-  MILK_ITEM_ID,
   SHAKSHUKA_RECIPE,
   textMessage,
 } from "./test-fixtures";
@@ -54,14 +52,13 @@ function makeRequest(
   return {
     conversationId: CONVERSATION_ID,
     messages: [textMessage("user", "What can I cook tonight?")],
-    fridge: makeFridge(),
+    inventory: makeInventoryUnits(),
     userMessage: "What can I cook tonight?",
     ...overrides,
   };
 }
 
-// Snapshot refs for makeFridge(): item_1 Milk 100%, item_2 Eggs 75%,
-// item_3 Tomatoes 50%.
+// Inventory refs: item_1 Milk 100%, item_2 Eggs 75%, item_3 Tomatoes 50%.
 const RECIPE_TOOL_INPUT = JSON.stringify({
   title: "Shakshuka",
   servings: 2,
@@ -95,7 +92,7 @@ describe("createVercelAIProvider", () => {
     expect(response.proposals).toEqual([]);
   });
 
-  it("runs the tool loop and assembles recipe + text parts", async () => {
+  it("runs the tool loop and assembles recipe + text draft parts", async () => {
     const { provider, model } = makeAdapter([
       generation(
         [
@@ -119,8 +116,9 @@ describe("createVercelAIProvider", () => {
     expect(response.parts).toHaveLength(2);
     const [recipePart, textPart] = response.parts;
     if (recipePart.type !== "recipe") throw new Error("expected recipe part");
-    expect(recipePart.recipe.ingredients[0].matchedItemIds).toEqual([
-      EGGS_ITEM_ID,
+    // Draft stays ref-based — the orchestrator resolves refs to ids later.
+    expect(recipePart.recipe.ingredients[0].matchedItemRefs).toEqual([
+      "item_2",
     ]);
     expect(textPart).toEqual({
       type: "text",
@@ -129,7 +127,7 @@ describe("createVercelAIProvider", () => {
     expect(model.doGenerateCalls).toHaveLength(2);
   });
 
-  it("collects add + consumption proposals from tool calls", async () => {
+  it("collects ref-based add + consumption proposals from tool calls", async () => {
     const { provider } = makeAdapter([
       generation(
         [
@@ -170,26 +168,22 @@ describe("createVercelAIProvider", () => {
       }),
     );
 
-    expect(response.proposals).toEqual([
-      {
-        kind: "add_item",
-        payload: { name: "Onions", category: "Vegetables", units: 1 },
-      },
-      {
-        kind: "consume_recipe",
-        payload: {
-          recipe: SHAKSHUKA_RECIPE,
-          consumptions: [
-            {
-              itemId: MILK_ITEM_ID,
-              productName: "Milk",
-              fromPercent: 100,
-              toPercent: 75,
-            },
-          ],
-        },
-      },
+    expect(response.proposals).toHaveLength(2);
+    expect(response.proposals?.[0]).toEqual({
+      kind: "add_item",
+      payload: { name: "Onions", category: "Vegetables", units: 1 },
+    });
+    const consumption = response.proposals?.[1];
+    if (consumption?.kind !== "consume_recipe")
+      throw new Error("expected consumption proposal");
+    expect(consumption.payload.consumptions).toEqual([
+      { ref: "item_1", toPercent: 75 },
     ]);
+    expect(consumption.payload.recipe.title).toBe("Shakshuka");
+    // No database ids anywhere in the provider's output.
+    expect(JSON.stringify(response)).not.toMatch(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i,
+    );
   });
 
   it("sends refs — never UUIDs or user ids — to the model", async () => {
@@ -210,22 +204,5 @@ describe("createVercelAIProvider", () => {
     await expect(provider.complete(makeRequest())).rejects.toBeInstanceOf(
       TransientProviderError,
     );
-  });
-
-  it("skips fridge entries without a product embed instead of crashing", async () => {
-    const { provider } = makeAdapter([
-      generation([{ type: "text", text: "ok" }], "stop"),
-    ]);
-    const bare = { ...makeFridge()[0] } as Record<string, unknown>;
-    delete bare.product;
-    const response = await provider.complete(
-      makeRequest({
-        fridge: [
-          bare as unknown as AICompletionRequest["fridge"][number],
-          ...makeFridge().slice(1),
-        ],
-      }),
-    );
-    expect(response.parts[0].type).toBe("text");
   });
 });

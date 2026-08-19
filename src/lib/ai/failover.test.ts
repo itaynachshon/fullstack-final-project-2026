@@ -9,7 +9,7 @@ import type {
 
 import { ProviderChainExhaustedError, ProviderFatalError } from "./errors";
 import { runWithProviderFallback } from "./failover";
-import { makeFridge, textMessage } from "./test-fixtures";
+import { makeInventoryUnits, textMessage } from "./test-fixtures";
 
 const RESPONSE: AICompletionResponse = {
   parts: [{ type: "text", text: "Here is a recipe." }],
@@ -19,7 +19,7 @@ function makeRequest(): AICompletionRequest {
   return {
     conversationId: "22222222-2222-4222-8222-222222222222",
     messages: [textMessage("user", "What can I cook?")],
-    fridge: makeFridge(),
+    inventory: makeInventoryUnits(),
     userMessage: "What can I cook?",
   };
 }

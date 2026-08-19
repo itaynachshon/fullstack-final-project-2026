@@ -100,10 +100,34 @@ test.describe("@rls restock reminders + notifications isolation", () => {
         });
       expect(impersonationError).not.toBeNull();
 
-      // NOTE: last_sent_key (the worker's idempotency column) is guarded at
-      // the app layer — no client input schema accepts it (see
-      // src/lib/v2/schemas.ts + src/lib/v2/actions/reminders.test.ts), the
-      // table grant itself is row-scoped by RLS but not column-scoped.
+      // Scheduler bookkeeping: last_sent_key is worker-owned. Since
+      // 20260819000000_v2_reminder_column_privileges.sql the UPDATE grant is
+      // column-scoped, so even the OWNER writing it is a grant miss (42501),
+      // not a silent no-op.
+      const { error: ownerBookkeepingError } = await clientA
+        .from("restock_reminders")
+        .update({ last_sent_key: "2099-01-01" })
+        .eq("id", reminderAId)
+        .select("id");
+      expect(ownerBookkeepingError).not.toBeNull();
+      expect(ownerBookkeepingError!.code).toBe("42501");
+
+      // Same for smuggling it into an otherwise-valid INSERT.
+      const { error: insertBookkeepingError } = await clientA
+        .from("restock_reminders")
+        .insert({
+          user_id: userAId,
+          days_of_week: [2],
+          local_time: "08:00",
+          timezone: "UTC",
+          enabled: true,
+          email_enabled: false,
+          in_app_enabled: true,
+          last_sent_key: "2099-01-01",
+        })
+        .select("id");
+      expect(insertBookkeepingError).not.toBeNull();
+      expect(insertBookkeepingError!.code).toBe("42501");
 
       // Owner still sees the row untouched by all of the above.
       const { data: ownRead, error: ownReadError } = await clientA

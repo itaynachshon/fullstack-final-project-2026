@@ -618,18 +618,81 @@ unauthenticated caller must not be able to fire future occurrences early.
 |---|---|
 | B reads/updates/deletes A's `restock_reminders` row | empty result set — no existence oracle |
 | B inserts a reminder with A's `user_id` | error (INSERT policy `with check`) |
+| A writes `last_sent_key` on their **own** reminder (UPDATE or INSERT) | error 42501 — column-scoped grant (see below) |
 | A or B inserts any `notifications` row (self-forgery included) | error — no INSERT policy or grant for `authenticated` |
 | B reads or marks-read A's notification | empty result set |
 | A updates a notification column other than `read_at` | error — column-level `GRANT UPDATE (read_at)` |
 
-**App-layer guards on top of RLS:** `last_sent_key` (the worker's
-idempotency marker) is accepted by **no** client input schema — Zod strips
-it and the server actions never write it (unit-tested); notification inserts
-have no server-action path at all. Recipient email for reminder messages
-comes from GoTrue (auth identity), never from client input; product names in
-emails are HTML-escaped before templating.
+**`last_sent_key` is database-enforced (convergence, 2026-08-19).** F2
+originally guarded the worker's idempotency marker only at the app layer
+(excluded from every Zod input schema) and flagged the broad table grant as
+a weakness: an authenticated user could PATCH their own row's
+`last_sent_key` directly through PostgREST.
+`supabase/migrations/20260819000000_v2_reminder_column_privileges.sql`
+closes this: the table-wide INSERT/UPDATE grants on `restock_reminders`
+were replaced with column lists (schedule fields + `updated_at`; INSERT
+also carries `user_id`, pinned by RLS `with check`). `last_sent_key` is in
+no `authenticated` grant, so only the Edge Function's `service_role`
+can write it. The Zod exclusion remains as defense in depth, not as the
+boundary. Static shape: `src/lib/v2/contracts.test.ts`; hosted behavior:
+`e2e/reminders-rls.spec.ts`.
+
+**Other guards.** Notification inserts have no server-action path at all.
+Recipient email for reminder messages comes from GoTrue (auth identity),
+never from client input; product names in emails are HTML-escaped before
+templating.
 
 **Failure containment.** Email-provider failures degrade to a per-channel
 outcome; they cannot block in-app delivery, and retries cannot duplicate
 sends because each occurrence is claimed once via an atomic
 compare-and-set on `last_sent_key` before any send is attempted.
+
+## 22. F3 — recipe AI chat (2026-08-18, contract finalized 2026-08-19)
+
+**Vendor privacy boundary.** Providers (Gemini, Groq via the Vercel AI SDK)
+receive a provider-neutral `AICompletionRequest` whose fridge snapshot is
+`AIInventoryUnit[]`: an opaque per-turn ref (`item_1`, `item_2`, …) plus
+product name, brand, package size, category, and remaining percentage.
+**No database UUIDs, no user id/email, no tokens, no timestamps, no
+history/notification tables** cross the boundary; the ref → row-id map
+never leaves the orchestrator (`src/lib/ai/orchestrator.ts`), and stored
+`matchedItemIds`/`proposalId` values are omitted when history is rendered
+for a model. Enforced by types (the request type simply has no id fields)
+and by wire-shape tests (`provider.test.ts`, `route.test.ts`).
+
+**Mutation safety.** Chat tools can only *stash drafts*; the turn persists
+them as `pending ai_action_proposals`. Fridge rows change exclusively in
+`acceptAIAddProposal` / `acceptAIConsumptionProposal`, which reload the
+proposal from the database under RLS, require `pending`, re-validate the
+stored payload with Zod, re-check current fridge state (stale consumption
+transitions are rejected), and reuse the audited MVP mutation actions.
+Model-drafted refs are resolved server-side against the same turn snapshot
+they were minted from; an unknown ref aborts the turn as an internal error.
+
+**Keys and limits.** `GOOGLE_GENERATIVE_AI_API_KEY` / `GROQ_API_KEY` are
+server-only (never `NEXT_PUBLIC`), read inside the registry at request
+time, and never echoed in responses (tested). The route is authenticated,
+Zod-validated, size-capped, and rate-limited per user (10 turns/min,
+in-memory). Failover is sequential and replays the same canonical history;
+it triggers on transient vendor failures only, so application bugs are
+never retried against a second vendor.
+
+## 23. V2 convergence review (2026-08-19)
+
+**Restock lineage (`fridge_items.restocked_from_item_id`) — static review.**
+The F0 policy is sufficient; no new migration was needed. INSERT and UPDATE
+`with check` clauses require the referenced source row to exist **and**
+belong to `auth.uid()` (subquery against the owner-scoped SELECT policy —
+no recursion: the SELECT policy is not self-referential). The policy check
+runs before the FK constraint, so a cross-user or nonexistent source id
+fails with the same 42501, leaving no FK existence oracle. `ON DELETE SET
+NULL` only ever nulls same-user references, since cross-user lineage can
+never be created.
+
+**Hosted test F5 must run (needs two real users on a migrated project):**
+B creates `fridge_items` rows with `restocked_from_item_id` set to (a) one
+of A's item ids and (b) a random nonexistent UUID — both must fail with
+identical 42501 errors; (c) B `UPDATE`s an own row pointing lineage at A's
+item id — 42501 or zero rows; (d) confirm the same-shaped failure for (a)
+and (b) so row existence is not distinguishable. Extend
+`e2e/reminders-rls.spec.ts` conventions (see `e2e/permissions.spec.ts`).

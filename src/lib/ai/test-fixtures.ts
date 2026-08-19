@@ -4,7 +4,13 @@
  */
 
 import type { Product, RemainingLevel } from "@/lib/types";
-import type { AIMessage, AIMessagePart, Recipe } from "@/lib/v2/types";
+import type {
+  AIInventoryUnit,
+  AIMessage,
+  AIMessagePart,
+  AIRecipeDraft,
+  Recipe,
+} from "@/lib/v2/types";
 
 import type { AIFridgeUnit } from "./types";
 
@@ -83,6 +89,36 @@ export function makeFridge(): AIFridgeUnit[] {
   ];
 }
 
+/**
+ * The safe provider-facing projection of makeFridge() — what
+ * buildTurnInventory + toInventoryUnits produce from it.
+ */
+export function makeInventoryUnits(): AIInventoryUnit[] {
+  return [
+    {
+      ref: "item_1",
+      name: "Milk",
+      brand: "Tnuva",
+      packageSize: "1L",
+      category: "Dairy",
+      remainingPercent: 100,
+    },
+    {
+      ref: "item_2",
+      name: "Eggs",
+      packageSize: "12",
+      category: "Other",
+      remainingPercent: 75,
+    },
+    {
+      ref: "item_3",
+      name: "Tomatoes",
+      category: "Vegetables",
+      remainingPercent: 50,
+    },
+  ];
+}
+
 let messageSeq = 0;
 
 export function makeMessage(
@@ -130,6 +166,37 @@ export const SHAKSHUKA_RECIPE: Recipe = {
       quantity: "1",
       optional: false,
       matchedItemIds: [],
+      availability: "unconfirmed",
+    },
+  ],
+  notes: null,
+};
+
+/** Ref-based draft of the same recipe (refs per makeInventoryUnits()). */
+export const SHAKSHUKA_RECIPE_DRAFT: AIRecipeDraft = {
+  title: "Shakshuka",
+  servings: 2,
+  instructions: ["Simmer tomatoes.", "Crack in the eggs.", "Cover and cook."],
+  ingredients: [
+    {
+      name: "Eggs",
+      quantity: "4",
+      optional: false,
+      matchedItemRefs: ["item_2"],
+      availability: "have",
+    },
+    {
+      name: "Tomatoes",
+      quantity: "3",
+      optional: false,
+      matchedItemRefs: ["item_3"],
+      availability: "have",
+    },
+    {
+      name: "Onion",
+      quantity: "1",
+      optional: false,
+      matchedItemRefs: [],
       availability: "unconfirmed",
     },
   ],

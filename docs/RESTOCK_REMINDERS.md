@@ -77,16 +77,22 @@ Supabase pg_cron  (*/5 * * * *)
 | `src/lib/v2/actions/reminders.ts`, `notifications.ts` | Server actions (RLS, anon key) |
 | `src/components/reminders/`, `src/components/notifications/` | `/restock` section, editor sheet, bell |
 
-## 3. Data model (frozen by F0 — no F2 migrations)
+## 3. Data model (frozen by F0; convergence added one privilege migration)
 
-`supabase/migrations/20260818000000_v2_foundation.sql` provides:
+`supabase/migrations/20260818000000_v2_foundation.sql` provides the tables;
+`supabase/migrations/20260819000000_v2_reminder_column_privileges.sql`
+(convergence) narrows the reminder column grants:
 
 - **`restock_reminders`** — many per user; `days_of_week smallint[]`
   (0 = Sunday … 6 = Saturday, unique, non-empty), `local_time time`,
   `timezone text`, `enabled`, `email_enabled`, `in_app_enabled`, and
   **`last_sent_key text`** (worker-owned idempotency marker). RLS: owner-only
-  for SELECT/INSERT/UPDATE/DELETE. `last_sent_key` is excluded from every
-  client input schema — only the worker writes it.
+  for SELECT/INSERT/UPDATE/DELETE. `last_sent_key` is **database-enforced**
+  as scheduler-owned: since
+  `20260819000000_v2_reminder_column_privileges.sql` the `authenticated`
+  role's INSERT/UPDATE grants are column lists that exclude it (PostgREST
+  answers 42501), so only the worker's `service_role` writes it. It is also
+  excluded from every client input schema (defense in depth).
 - **`notifications`** — server-generated; owner may SELECT and UPDATE
   **only `read_at`** (column-level grant). No INSERT/DELETE policy or grant
   for `authenticated` — users cannot forge or wipe notification rows; the
@@ -190,6 +196,11 @@ Prereqs (student dashboard steps):
    Domains). Free tier (300 emails/day) is plenty.
 2. **Supabase CLI** linked to the hosted project: `supabase link
    --project-ref <ref>`.
+3. **V2 migrations applied** (`supabase db push`) — both
+   `20260818000000_v2_foundation.sql` and
+   `20260819000000_v2_reminder_column_privileges.sql` (the worker relies on
+   `service_role` privileges; clients must not hold the broad reminder
+   grants).
 
 Then:
 
