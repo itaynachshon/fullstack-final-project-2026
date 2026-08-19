@@ -154,7 +154,10 @@ test.describe("@rls restock reminders + notifications isolation", () => {
           .eq("id", reminderAId);
         expect(error).toBeNull();
       }
-      await Promise.all([clientA.auth.signOut(), clientB.auth.signOut()]);
+      await Promise.all([
+        clientA.auth.signOut({ scope: "local" }),
+        clientB.auth.signOut({ scope: "local" }),
+      ]);
     }
   });
 
@@ -202,7 +205,10 @@ test.describe("@rls restock reminders + notifications isolation", () => {
 
       void userBId;
     } finally {
-      await Promise.all([clientA.auth.signOut(), clientB.auth.signOut()]);
+      await Promise.all([
+        clientA.auth.signOut({ scope: "local" }),
+        clientB.auth.signOut({ scope: "local" }),
+      ]);
     }
   });
 
@@ -289,7 +295,10 @@ test.describe("@rls restock reminders + notifications isolation", () => {
           .eq("id", notificationId);
         expect(error).toBeNull();
       }
-      await Promise.all([clientA.auth.signOut(), clientB.auth.signOut()]);
+      await Promise.all([
+        clientA.auth.signOut({ scope: "local" }),
+        clientB.auth.signOut({ scope: "local" }),
+      ]);
     }
   });
 });

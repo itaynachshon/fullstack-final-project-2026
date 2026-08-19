@@ -148,7 +148,10 @@ test.describe("@rls fridge restock lineage isolation", () => {
       }
       // The run-unique product row stays: ordinary users have no product
       // DELETE permission (documented test-data convention).
-      await Promise.all([clientA.auth.signOut(), clientB.auth.signOut()]);
+      await Promise.all([
+        clientA.auth.signOut({ scope: "local" }),
+        clientB.auth.signOut({ scope: "local" }),
+      ]);
     }
   });
 });
