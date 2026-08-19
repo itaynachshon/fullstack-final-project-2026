@@ -26,8 +26,6 @@ describe("isProtectedPagePath", () => {
     "/restock",
     "/fridge/anything",
     "/add/scan",
-    "/settings",
-    "/settings/reminders",
     "/chat",
     "/chat/abc",
   ])("treats %s as protected", (path) => {
@@ -43,7 +41,8 @@ describe("isProtectedPagePath", () => {
     "/fridgex",
     "/additional",
     "/chatting",
-    "/settingsx",
+    // No settings page ships; the F0 route reservation was removed by F5.
+    "/settings",
   ])("treats %s as not protected", (path) => {
     expect(isProtectedPagePath(path)).toBe(false);
   });

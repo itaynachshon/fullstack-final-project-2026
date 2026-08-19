@@ -265,9 +265,9 @@ describe("V2 schema outputs match frozen input types", () => {
 // - F3 AI chat:       src/lib/v2/actions/ai.test.ts
 
 describe("V2 routes", () => {
-  it("freezes settings and chat paths", () => {
-    expect(V2_ROUTES).toEqual({ settings: "/settings", chat: "/chat" });
-    expect(V2_PROTECTED_PAGES).toEqual(["/settings", "/chat"]);
+  it("freezes the chat path (the unused /settings reservation was removed by F5)", () => {
+    expect(V2_ROUTES).toEqual({ chat: "/chat" });
+    expect(V2_PROTECTED_PAGES).toEqual(["/chat"]);
   });
 });
 

@@ -93,6 +93,18 @@ create policy "fridge_items: users update their own items"
 -- ── 2. restock_reminders — many schedules per user ──────────────────────────
 -- Weekdays are JavaScript Date.getDay() values: 0 = Sunday … 6 = Saturday.
 
+-- Postgres rejects subqueries inside CHECK constraints (SQLSTATE 0A000), so
+-- weekday distinctness lives in an IMMUTABLE helper the constraint calls.
+-- (F5 integration fix — the original inline subquery failed `db push`.)
+create function public.smallint_array_is_distinct(values_in smallint[])
+returns boolean
+language sql
+immutable
+as $$
+  select count(distinct d) = cardinality(values_in)
+  from unnest(values_in) as d
+$$;
+
 create table public.restock_reminders (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references auth.users (id) on delete cascade,
@@ -112,10 +124,7 @@ create table public.restock_reminders (
     cardinality(days_of_week) between 1 and 7
     and array_position(days_of_week, null) is null
     and days_of_week <@ array[0, 1, 2, 3, 4, 5, 6]::smallint[]
-    and (
-      select count(distinct d)
-      from unnest(days_of_week) as d
-    ) = cardinality(days_of_week)
+    and public.smallint_array_is_distinct(days_of_week)
   ),
   constraint restock_reminders_timezone_len check (
     char_length(timezone) between 1 and 64
