@@ -379,3 +379,40 @@ export const AlarmClockIcon = createIcon(
     <path key="k5" d="M17.64 18.67 20 21" />
   </>,
 );
+
+export const MessageCircleIcon = createIcon(
+  <>
+    <path key="k0" d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+  </>,
+);
+
+export const SendHorizontalIcon = createIcon(
+  <>
+    <path
+      key="k0"
+      d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"
+    />
+    <path key="k1" d="M6 12h16" />
+  </>,
+);
+
+export const SquarePenIcon = createIcon(
+  <>
+    <path
+      key="k0"
+      d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+    />
+    <path
+      key="k1"
+      d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"
+    />
+  </>,
+);
+
+export const CircleHelpIcon = createIcon(
+  <>
+    <circle key="k0" cx="12" cy="12" r="10" />
+    <path key="k1" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <path key="k2" d="M12 17h.01" />
+  </>,
+);

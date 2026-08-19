@@ -4,7 +4,7 @@ test.describe("@public authentication boundaries", () => {
   test("redirects logged-out visitors away from protected pages", async ({
     page,
   }) => {
-    for (const route of ["/fridge", "/add", "/restock"]) {
+    for (const route of ["/fridge", "/add", "/restock", "/chat"]) {
       await page.goto(route);
       await expect(page).toHaveURL(/\/login$/);
       await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
@@ -15,6 +15,22 @@ test.describe("@public authentication boundaries", () => {
     request,
   }) => {
     const response = await request.get("/api/products/search?q=milk");
+
+    expect(response.status()).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "unauthenticated",
+        message: "Authentication required.",
+      },
+    });
+  });
+
+  test("rejects logged-out AI chat requests with a 401 response", async ({
+    request,
+  }) => {
+    const response = await request.post("/api/ai/chat", {
+      data: { message: "What can I cook?" },
+    });
 
     expect(response.status()).toBe(401);
     await expect(response.json()).resolves.toEqual({
