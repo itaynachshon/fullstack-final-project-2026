@@ -15,6 +15,8 @@ University Fullstack course final project.
 - [`docs/TECHNICAL_DESIGN.md`](docs/TECHNICAL_DESIGN.md) — schema, contracts, flows
 - [`docs/UI_DESIGN.md`](docs/UI_DESIGN.md) — screens, components, interaction design
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — wave-by-wave build plan
+- [`docs/FEATURES_V2_PLAN.md`](docs/FEATURES_V2_PLAN.md) — V2 foundation (schema, RLS, frozen contracts, F1/F2/F3 ownership)
+- [`docs/RESTOCK_REMINDERS.md`](docs/RESTOCK_REMINDERS.md) — F2 reminders: Edge Function worker, Brevo email, cron deployment runbook
 - [`docs/TEST_SPEC.md`](docs/TEST_SPEC.md) — automated and manual test strategy + evidence
 - [`docs/SECURITY.md`](docs/SECURITY.md) — trust boundaries, RLS audit, verified attack matrix
 - [`docs/SCALABILITY.md`](docs/SCALABILITY.md) — measured query plans, growth analysis, scaling path
@@ -51,6 +53,31 @@ production Vercel deployment:
 The remaining manual item is the physical-phone camera test in
 `docs/TEST_SPEC.md` §9 (real iPhone Safari / Android Chrome).
 
+### V2 (2026-08-20): history, reminders, AI chat — hosted-verified
+
+V2 adds three features on top of the frozen MVP, all verified end-to-end
+against the real hosted Supabase project and deployed Vercel Previews
+(`docs/TEST_SPEC.md` §17 records the exact evidence):
+
+- **Per-unit item history & restock lineage** — every unit's consumption
+  timeline plus "restocked on" / "restocked from" facts, backed by a
+  lineage FK whose RLS was attack-tested live (cross-user and
+  nonexistent-UUID lineage rejected indistinguishably).
+- **Restock reminders & notifications** — weekly schedules (days, local
+  time, timezone, per-channel toggles) edited on `/restock`; a Supabase
+  Edge Function worker invoked by pg_cron/pg_net every 5 minutes delivers
+  in-app notifications (bell + unread badge) and Brevo emails,
+  idempotently (`last_sent_key` is scheduler-only and unwritable by
+  clients — verified). Real-cron delivery verified with zero duplicates
+  across ~250 live ticks.
+- **Fridge Assistant (`/chat`)** — provider-neutral AI chat (Gemini
+  `gemini-2.5-flash` → Groq `openai/gpt-oss-120b` failover, verified live
+  with real 429s) that sees only a privacy-safe inventory projection
+  (opaque refs — never UUIDs, user ids, or emails) and can only change the
+  fridge through explicit user-confirmed proposals. Latest verification:
+  673 Vitest tests; Playwright official suite 14/14 on both a local server
+  against the hosted DB and the deployed Preview.
+
 ## Screenshots
 
 | Fridge (mobile)                                  | Consume sheet                                            | Restock                                            |
@@ -72,6 +99,12 @@ Desktop layout: [`docs/screenshots/fridge-desktop.png`](docs/screenshots/fridge-
   finished (one-tap restock to a fresh 100% unit), and a recent-activity feed
 - **Per-user isolation enforced in the database** (Supabase RLS) — verified
   empirically with a cross-user attack matrix
+- **Per-unit history & lineage (V2):** each unit's consumption timeline
+  plus restocked-on/restocked-from facts
+- **Restock reminders (V2):** weekly schedules with in-app notifications
+  and Brevo email, driven by pg_cron → Supabase Edge Function
+- **Fridge Assistant (V2):** recipe chat over your actual inventory with
+  provider failover and explicit-confirmation fridge updates
 - Hebrew/RTL product names, mobile-first UI with bottom navigation, desktop
   top navigation
 
@@ -119,15 +152,34 @@ npm run dev                  # http://localhost:3000
 The `SUPABASE_SERVICE_ROLE_KEY` is used ONLY by the local catalog seed script
 (step 3) — it must never be committed or set on Vercel.
 
+For the V2 Fridge Assistant, also set the two server-only AI keys in
+`.env.local` (both have free tiers; neither may ever be `NEXT_PUBLIC_`):
+
+- `GOOGLE_GENERATIVE_AI_API_KEY` — [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+- `GROQ_API_KEY` — [console.groq.com/keys](https://console.groq.com/keys)
+
+Optional overrides (defaults in `src/lib/ai/config.ts`): `AI_PROVIDER_ORDER`
+(`google,groq`), `AI_GOOGLE_MODEL` (`gemini-2.5-flash`), `AI_GROQ_MODEL`
+(`openai/gpt-oss-120b`), `AI_PROVIDER_TIMEOUT_MS`, `AI_MAX_OUTPUT_TOKENS`.
+Without any AI key the app still works — `/chat` shows a calm "temporarily
+unavailable" notice. Verify keys with `node scripts/ai-smoke.mjs`.
+
+The reminder worker's secrets live in **Supabase** (Edge Function secrets +
+Vault), never in Vercel — see `docs/RESTOCK_REMINDERS.md` §6–7 and §11.
+
 ### 2. Apply the database migrations
 
-There are three migrations, applied in filename order:
+There are seven migrations, applied in filename order:
 
-| Migration                             | What it does                                                           |
-| ------------------------------------- | ---------------------------------------------------------------------- |
-| `20260815000000_initial_schema.sql`   | tables, indexes, RLS policies                                           |
+| Migration                               | What it does                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| `20260815000000_initial_schema.sql`     | tables, indexes, RLS policies                                           |
 | `20260816000000_security_hardening.sql` | consumption-event ownership policy + `image_url` CHECK (Wave 5 fix)   |
-| `20260816000100_data_api_grants.sql`  | explicit Data API grants (required on Supabase projects created ≥ 2026) |
+| `20260816000100_data_api_grants.sql`    | explicit Data API grants (required on Supabase projects created ≥ 2026) |
+| `20260818000000_v2_foundation.sql`      | V2 lineage FK, reminder/notification/AI tables + RLS (see `docs/FEATURES_V2_PLAN.md`) |
+| `20260819000000_v2_reminder_column_privileges.sql` | column-scoped reminder grants — `last_sent_key` becomes scheduler-only (see `docs/SECURITY.md` §21) |
+| `20260819000100_data_api_privilege_alignment.sql` | strips legacy default-ACL grants (`anon` gets nothing; column-scoped `notifications`/`ai_action_proposals` writes) — see `docs/SECURITY.md` §24 |
+| `20260819000200_fix_lineage_policy_scope.sql` | fixes lineage-policy column scoping so legitimate restocks work (hosted-found bug; see `docs/SECURITY.md` §24) |
 
 Option A — Supabase CLI (recommended):
 
@@ -141,7 +193,10 @@ Option B — dashboard: open the SQL Editor and run the contents of each file in
 `supabase/migrations/`, in filename order, once each.
 
 Afterwards, **Database → Tables** should show `products`, `fridge_items`, and
-`consumption_events`, each with RLS enabled.
+`consumption_events`, each with RLS enabled. After the V2 foundation
+migration, also `restock_reminders`, `notifications`, `ai_conversations`,
+`ai_messages`, and `ai_action_proposals`. The MVP UI does not use those
+tables until agents F1–F3 implement their features.
 
 ### 3. Seed the Israeli catalog
 
@@ -183,13 +238,19 @@ npm run format:check # Prettier (check)
 
 ## Testing
 
-- **Unit/integration (Vitest):** 318 tests across barcode normalization and
+- **Unit/integration (Vitest):** 673 tests across barcode normalization and
   classification, product lookup/search, fridge derivations, schema
-  validation, server-action logic, and API contracts.
-- **E2E (Playwright):** 8 tests. Three run credential-free (auth boundaries,
-  responsive shell); five need dedicated Supabase test users supplied via
-  env vars (full lifecycle, barcode edge cases, catalog search, and the
-  cross-user RLS attack matrix, including the Wave 5 event-ownership fix).
+  validation, server-action logic, API contracts, V2 contracts, item
+  history, reminders (worker, scheduler math, email adapter), and the AI
+  layer (snapshot privacy, provider adapter, failover classification,
+  proposal actions).
+- **E2E (Playwright):** 14 tests across 5 spec files. Credential-free:
+  auth boundaries + responsive shell. Credentialed (dedicated Supabase
+  test users via env vars): full fridge lifecycle incl. restock lineage,
+  barcode edge cases, catalog search, the cross-user RLS attack matrix,
+  reminder/notification RLS incl. `last_sent_key` protection, and the V2
+  lineage RLS attack matrix. All 14 verified against both a local server
+  on the hosted DB and a deployed Vercel Preview (`PLAYWRIGHT_BASE_URL`).
 - **Test-credential policy:** two dedicated throwaway users
   (`fridge-e2e-a@…`, `fridge-e2e-b@…`) created only for testing. Credentials
   live in `.env.local` / CI secrets — never in the repository. See
@@ -205,9 +266,11 @@ request.
 1. Push this repo to GitHub and import it in Vercel (framework preset:
    Next.js — no custom build settings needed; `prebuild` syncs the scanner
    WASM binary automatically). Production branch: `main`.
-2. Set two environment variables in the Vercel project (Production +
-   Preview): `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-   Do **not** set the service-role key on Vercel.
+2. Set four environment variables in the Vercel project (Production +
+   Preview): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   and the server-only `GOOGLE_GENERATIVE_AI_API_KEY` and `GROQ_API_KEY`
+   (mark them Sensitive). Do **not** set the service-role key on Vercel —
+   the reminder worker runs inside Supabase and gets its credentials there.
 3. Deploy. `vercel.json` pins the function region to `fra1` (Frankfurt) so
    server code runs next to an EU Supabase project (single-region choice is
    supported on the Hobby plan).
@@ -281,6 +344,7 @@ src/
     types.ts            # FROZEN shared domain + contract types
     schemas.ts          # FROZEN Zod boundary schemas
     routes.ts           # FROZEN route map + gating predicates
+    v2/                 # V2 frozen contracts + stub actions (docs/FEATURES_V2_PLAN.md)
     barcode/            # GTIN domain: normalize · check digit · classify (RCN)
     products/           # lookup chain, search, Open Food Facts client, categorization
     fridge/             # derivations (low/finished/activity), formatting, mappers, queries

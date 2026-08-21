@@ -181,7 +181,10 @@ test.describe("@rls ordinary-user database isolation", () => {
           .eq("id", itemAId);
         expect(error).toBeNull();
       }
-      await Promise.all([clientA.auth.signOut(), clientB.auth.signOut()]);
+      await Promise.all([
+        clientA.auth.signOut({ scope: "local" }),
+        clientB.auth.signOut({ scope: "local" }),
+      ]);
     }
   });
 });

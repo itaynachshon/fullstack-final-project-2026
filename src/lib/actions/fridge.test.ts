@@ -330,7 +330,7 @@ describe("deleteItem", () => {
 /* ─── restockItem ─────────────────────────────────────────────────────────── */
 
 describe("restockItem", () => {
-  it("creates a NEW 100% unit for the same product, preserving the old row", async () => {
+  it("creates a NEW 100% unit with restock lineage, preserving the old row", async () => {
     authed([
       {
         table: "fridge_items",
@@ -352,6 +352,9 @@ describe("restockItem", () => {
       user_id: USER_ID,
       product_id: PRODUCT_ID,
       remaining_percent: 100,
+      // Lineage FK (docs/FEATURES_V2_PLAN.md §4.1): the fresh unit records
+      // which unit it restocked; the old row itself is never touched.
+      restocked_from_item_id: ITEM_ID,
     });
     // No update/delete ever touches the historical row.
     expect(stub.calls.some((call) => call.op === "update")).toBe(false);

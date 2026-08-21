@@ -42,7 +42,7 @@ The goal is meaningful confidence in the business loop, not a test for every ren
 
 ### Out of scope
 
-There are no tests for email notifications, cron, expiry dates, PWA behavior, price comparison, household sharing, OCR, AI, or nutrition because those features are not in the MVP.
+There are no tests for email notifications, cron, expiry dates, PWA behavior, price comparison, household sharing, OCR, AI, or nutrition because those features are not in the MVP. V2 foundation contracts (schemas, stub actions, migration SQL) are covered by Vitest in `src/lib/v2/`; feature UI, scheduler, and provider tests belong to agents F1–F3 (`docs/FEATURES_V2_PLAN.md` §9).
 
 ## 3. Test Layers and Ownership
 
@@ -379,3 +379,76 @@ Evidence must distinguish execution from preparation.
 - Signup remains manual to avoid unbounded disposable auth accounts and email-confirmation dependencies.
 
 These limitations are explicit test boundaries, not passed results.
+
+## 17. F5 — V2 hosted verification evidence (2026-08-20)
+
+All results below are from real runs against the hosted Supabase project
+(Frankfurt) and deployed Vercel **Preview** builds of `feature/v2` — no
+local database was involved.
+
+**Local gate (final F5 run):** Prettier clean · ESLint clean · `tsc` clean ·
+**Vitest 673 passed / 0 failed (48 files)** · production build succeeds.
+
+**Playwright, official suite (5 spec files), twice:**
+
+| Target | Result |
+|---|---|
+| Local server + hosted Supabase (`npx playwright test e2e/{auth-protection,fridge-flow,lineage-rls,permissions,reminders-rls}.spec.ts`) | **14 passed / 0 failed / 0 skipped** |
+| Deployed Vercel Preview (`PLAYWRIGHT_BASE_URL=<preview>`) | **14 passed / 0 failed / 0 skipped** |
+
+This includes the new F5 `e2e/lineage-rls.spec.ts` (cross-user +
+nonexistent-UUID lineage attacks with indistinguishable 42501s, legitimate
+same-user lineage allowed) and the full reminder RLS matrix incl.
+`last_sent_key` write/smuggle denial against the hosted database.
+
+**Temporary hosted UI QA suite (deleted after the run, evidence in
+`docs/SECURITY.md` §24 and screenshots under `qa-screens-f5/` during the
+run):** 5/5 passed on Preview — F1 item-history lineage (restocked-on +
+origin facts across old/new units), reminder editor lifecycle
+(create/persist/edit/toggle/delete, browser-timezone default
+`Asia/Jerusalem`), notification bell (server-seeded row, unread badge,
+mark-read persisted server-side), chat all-providers-unavailable UX (calm
+notice, message persisted, retry does not duplicate), and a 4-viewport
+responsive sweep (390×844 / 430×932 / 768×1024 / 1440×900) of `/fridge`,
+`/restock`, `/chat` with zero horizontal overflow and Hebrew/RTL content.
+
+**Reminder infrastructure (hosted):** controlled-time worker matrix
+(due/not-due/disabled/channel combinations/empty-fridge/duplicate) all
+correct and idempotent; real pg_cron delivery verified end-to-end with
+exactly one notification and zero duplicates across ~250 subsequent
+real 5-minute ticks (~21 h). Details: `docs/RESTOCK_REMINDERS.md` §11.
+
+**Live AI (real keys, Preview):**
+
+- `node scripts/ai-smoke.mjs`: Gemini `gemini-2.5-flash` OK (~0.8 s);
+  Groq `openai/gpt-oss-120b` OK (~0.5 s) after F5 replaced the
+  decommissioned `llama-3.3-70b-versatile` default.
+- Primary chat journey ("What can I make right now?" over a seeded
+  fridge): answer grounded in actual inventory, conversation persisted
+  across reload, no vendor names or UUIDs anywhere in the UI.
+- **Failover proven with real 429s:** when the Gemini free-tier quota
+  exhausted, server logs recorded
+  `AI turn served by "groq" after failover (google: HTTP 429)` while the
+  user saw an ordinary answer — same conversation, no duplicate user
+  message, provider chain invisible.
+- Free-tier quota context for graders: one agentic turn makes several
+  provider calls; Gemini free tier allows 10 requests/min and 250/day,
+  Groq 8k tokens/min — sustained test bursts can exhaust both, which
+  surfaces the (correct, calm) "temporarily unavailable" UX rather than a
+  crash.
+- **Deferred (quota, not code):** the remaining scripted live-UI runs of
+  the missing-ingredient no-path, full recipe→consume confirmation, and
+  stale-proposal flows were cut short when the day's Gemini quota
+  exhausted mid-suite. Partially observed live: the missing-ingredient
+  card rendered with its quick replies on a real turn, and every
+  underlying action (proposal accept/reject/stale-conflict/revert,
+  explicit-confirmation boundary) is covered by the 673-test unit layer
+  (`src/lib/v2/actions/ai.test.ts`, `proposal-controller.test.ts`,
+  `tools.test.ts`). Owner decision: release now, re-run the live flows
+  when the quota resets.
+
+**Fixed during F5 (regression-tested):** Groq `tool_use_failed` →
+transient classification (+2 failover unit tests); ingredient `quantity`
+cap 40→100 (tool + persisted schemas); `NotificationBell` stale-response
+merge; cross-worker `signOut` scope in all credentialed specs
+(`{ scope: "local" }`).

@@ -124,7 +124,7 @@ test.describe("@supabase authenticated MVP journeys", () => {
       ).toHaveCount(2);
     } finally {
       await deleteNewOwnItems(client, productName, originalItemIds);
-      await client.auth.signOut();
+      await client.auth.signOut({ scope: "local" });
     }
   });
 
@@ -229,7 +229,7 @@ test.describe("@supabase authenticated MVP journeys", () => {
       await expect(productCard(page, productName)).toBeVisible();
     } finally {
       await deleteNewOwnItems(client, productName, originalItemIds);
-      await client.auth.signOut();
+      await client.auth.signOut({ scope: "local" });
     }
   });
 
@@ -268,7 +268,7 @@ test.describe("@supabase authenticated MVP journeys", () => {
       await expect(productCard(page, productName)).toBeVisible();
     } finally {
       await deleteNewOwnItems(client, productName, originalItemIds);
-      await client.auth.signOut();
+      await client.auth.signOut({ scope: "local" });
     }
   });
 });

@@ -5,6 +5,12 @@ loadEnvConfig(process.cwd());
 export const e2eEnvironment = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  /**
+   * Optional, local-stack only (never NEXT_PUBLIC, never Vercel): lets the
+   * notifications RLS spec seed a server-created row the way the Edge
+   * Function worker does. Tests that need it skip when absent.
+   */
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   userA: {
     email: process.env.E2E_USER_A_EMAIL,
     password: process.env.E2E_USER_A_PASSWORD,
@@ -33,6 +39,9 @@ export const hasTwoUsers =
   hasUserA &&
   Boolean(e2eEnvironment.userB.email) &&
   Boolean(e2eEnvironment.userB.password);
+
+export const hasServiceRole =
+  hasSupabase && Boolean(e2eEnvironment.supabaseServiceRoleKey);
 
 export const hasSeededCatalogTarget =
   hasUserA &&

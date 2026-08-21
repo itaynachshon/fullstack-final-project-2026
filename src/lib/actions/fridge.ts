@@ -189,7 +189,10 @@ export async function deleteItem(
 /**
  * One-tap restock: inserts a FRESH 100% unit for the referenced item's
  * product. The old finished row is preserved as history — never reset or
- * reused (docs/TECHNICAL_DESIGN.md §6.4).
+ * reused (docs/TECHNICAL_DESIGN.md §6.4). The new row records its lineage in
+ * `restocked_from_item_id` (docs/FEATURES_V2_PLAN.md §4.1) so the item
+ * history can answer "where did this unit come from?" and "when was that
+ * finished unit restocked?" without duplicating any timestamp.
  */
 export async function restockItem(
   input: RestockItemInput,
@@ -213,6 +216,7 @@ export async function restockItem(
       user_id: userId,
       product_id: item.product_id,
       remaining_percent: 100,
+      restocked_from_item_id: data.itemId,
     })
     .select("id")
     .single();

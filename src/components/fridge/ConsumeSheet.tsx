@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 
-import { CheckIcon, CircleCheckIcon, Trash2Icon } from "@/components/icons";
+import {
+  CheckIcon,
+  CircleCheckIcon,
+  HistoryIcon,
+  Trash2Icon,
+} from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/components/ui/utils";
@@ -10,6 +15,7 @@ import { levelLabel, shortDate } from "@/lib/fridge/format";
 import { REMAINING_LEVELS } from "@/lib/types";
 import type { RemainingLevel } from "@/lib/types";
 
+import { ItemHistorySheet } from "./history/ItemHistorySheet";
 import { LevelGauge } from "./LevelGauge";
 
 /**
@@ -18,6 +24,10 @@ import { LevelGauge } from "./LevelGauge";
  * finishing food is success, not damage) — plus the app's only delete path,
  * a destructive text row deliberately distant from the level options, guarded
  * by a confirm dialog that names the object.
+ *
+ * A "Unit history" row (F1) swaps this sheet for the sibling ItemHistorySheet
+ * — the details/timeline view for exactly this physical unit; closing it
+ * returns here, so the consume flow itself is untouched.
  *
  * Semantically a radio group labeled by the product name; the current level
  * is checked, aria-current, and non-interactive (double-tap idempotence
@@ -53,16 +63,18 @@ export function ConsumeSheet({
   onDelete: () => void;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [showingHistory, setShowingHistory] = useState(false);
 
   const close = () => {
     setConfirmingDelete(false);
+    setShowingHistory(false);
     onClose();
   };
 
   return (
     <>
       <Modal
-        open={open && !confirmingDelete}
+        open={open && !confirmingDelete && !showingHistory}
         onClose={close}
         variant="sheet"
         ariaLabel={`Set remaining amount of ${productName}`}
@@ -99,6 +111,16 @@ export function ConsumeSheet({
 
             <button
               type="button"
+              aria-haspopup="dialog"
+              onClick={() => setShowingHistory(true)}
+              className="mt-3 flex h-13 w-full items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors duration-150 outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
+            >
+              <HistoryIcon className="size-4 text-muted-foreground" />
+              Unit history
+            </button>
+
+            <button
+              type="button"
               onClick={() => setConfirmingDelete(true)}
               className="mt-3 flex h-13 w-full items-center gap-2 rounded-xl border px-4 text-sm font-medium text-destructive transition-colors duration-150 outline-none hover:bg-destructive/8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none"
             >
@@ -108,6 +130,13 @@ export function ConsumeSheet({
           </>
         )}
       </Modal>
+
+      <ItemHistorySheet
+        open={open && showingHistory}
+        onBack={() => setShowingHistory(false)}
+        productName={productName}
+        unit={unit}
+      />
 
       <Modal
         open={open && confirmingDelete}

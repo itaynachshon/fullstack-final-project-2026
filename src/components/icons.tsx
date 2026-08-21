@@ -351,3 +351,68 @@ export const PackageIcon = createIcon(
     <path key="k3" d="m7.5 4.27 9 5.15" />
   </>,
 );
+
+export const BellIcon = createIcon(
+  <>
+    <path key="k0" d="M10.268 21a2 2 0 0 0 3.464 0" />
+    <path
+      key="k1"
+      d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"
+    />
+  </>,
+);
+
+export const MailIcon = createIcon(
+  <>
+    <rect key="k0" width="20" height="16" x="2" y="4" rx="2" />
+    <path key="k1" d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </>,
+);
+
+export const AlarmClockIcon = createIcon(
+  <>
+    <circle key="k0" cx="12" cy="13" r="8" />
+    <path key="k1" d="M12 9v4l2 2" />
+    <path key="k2" d="M5 3 2 6" />
+    <path key="k3" d="m22 6-3-3" />
+    <path key="k4" d="M6.38 18.7 4 21" />
+    <path key="k5" d="M17.64 18.67 20 21" />
+  </>,
+);
+
+export const MessageCircleIcon = createIcon(
+  <>
+    <path key="k0" d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+  </>,
+);
+
+export const SendHorizontalIcon = createIcon(
+  <>
+    <path
+      key="k0"
+      d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"
+    />
+    <path key="k1" d="M6 12h16" />
+  </>,
+);
+
+export const SquarePenIcon = createIcon(
+  <>
+    <path
+      key="k0"
+      d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+    />
+    <path
+      key="k1"
+      d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"
+    />
+  </>,
+);
+
+export const CircleHelpIcon = createIcon(
+  <>
+    <circle key="k0" cx="12" cy="12" r="10" />
+    <path key="k1" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <path key="k2" d="M12 17h.01" />
+  </>,
+);

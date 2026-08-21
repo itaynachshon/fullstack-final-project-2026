@@ -569,3 +569,208 @@ catalog is unmoderated.
 abuse protection; per-user/IP rate limiting and negative caching; catalog
 moderation or private custom products; re-run the §5 matrix and the
 credentialed Playwright suite once against the hosted project before grading.
+
+## 20. V2 foundation (schema only — 2026-08-18)
+
+Additive migration `supabase/migrations/20260818000000_v2_foundation.sql`.
+The MVP attack matrix in §5 is unchanged. Full V2 policy tables and the F2
+cron/service-role exception: `docs/FEATURES_V2_PLAN.md` §7–§8.
+
+What F0 already encoded in SQL:
+
+- `fridge_items.restocked_from_item_id` is nullable; INSERT/UPDATE require the
+  source row to belong to `auth.uid()` (FK-oracle class, same as Wave 5).
+- `restock_reminders`: own-user CRUD; weekdays constrained to 0–6.
+- `notifications`: owners may SELECT and `UPDATE (read_at)` only. No INSERT
+  or DELETE for `authenticated`. Forging in-app notifications requires
+  `service_role` (F2 cron route, not yet implemented).
+- AI tables: users see only their conversations/messages/proposals; messages
+  are append-only; proposal `payload` cannot be updated by the Data API
+  (`GRANT UPDATE (status, updated_at)` only).
+
+The “no service-role client under `src/`” claim in §4 remains true for the
+MVP runtime. F2 will introduce a **cron-only** exception; it must not be used
+by ordinary pages or actions.
+
+## 21. F2 — restock reminders & notifications (2026-08-18)
+
+Runbook and architecture: `docs/RESTOCK_REMINDERS.md`. Security posture:
+
+**Where the service role actually lives.** The F2 exception anticipated in
+§20 landed *outside* the Next.js app entirely: the worker is a **Supabase
+Edge Function** (`supabase/functions/restock-reminders/`), invoked by
+`pg_cron` → `pg_net`. `SUPABASE_SERVICE_ROLE_KEY` is provided by the Edge
+runtime to that function only. **Nothing under `src/` uses a service-role
+client; no Supabase secret exists on Vercel; there is no `/api/cron` route.**
+The §4 claim is therefore still literally true for the web app.
+
+**Worker invocation auth.** The function deploys with `--no-verify-jwt` and
+gates every request on `Authorization: Bearer $RESTOCK_CRON_SECRET`
+(timing-safe comparison; fails closed with 500 if the secret is unset, 401
+otherwise). The cron job reads the secret from **Supabase Vault** at run
+time — job SQL, `cron.job` rows, and the repo never contain the value. The
+gate matters beyond DoS: the function accepts a `now` test override, so an
+unauthenticated caller must not be able to fire future occurrences early.
+
+**Row security (empirically tested in `e2e/reminders-rls.spec.ts`).**
+
+| Attack | Result |
+|---|---|
+| B reads/updates/deletes A's `restock_reminders` row | empty result set — no existence oracle |
+| B inserts a reminder with A's `user_id` | error (INSERT policy `with check`) |
+| A writes `last_sent_key` on their **own** reminder (UPDATE or INSERT) | error 42501 — column-scoped grant (see below) |
+| A or B inserts any `notifications` row (self-forgery included) | error — no INSERT policy or grant for `authenticated` |
+| B reads or marks-read A's notification | empty result set |
+| A updates a notification column other than `read_at` | error — column-level `GRANT UPDATE (read_at)` |
+
+**`last_sent_key` is database-enforced (convergence, 2026-08-19).** F2
+originally guarded the worker's idempotency marker only at the app layer
+(excluded from every Zod input schema) and flagged the broad table grant as
+a weakness: an authenticated user could PATCH their own row's
+`last_sent_key` directly through PostgREST.
+`supabase/migrations/20260819000000_v2_reminder_column_privileges.sql`
+closes this: the table-wide INSERT/UPDATE grants on `restock_reminders`
+were replaced with column lists (schedule fields + `updated_at`; INSERT
+also carries `user_id`, pinned by RLS `with check`). `last_sent_key` is in
+no `authenticated` grant, so only the Edge Function's `service_role`
+can write it. The Zod exclusion remains as defense in depth, not as the
+boundary. Static shape: `src/lib/v2/contracts.test.ts`; hosted behavior:
+`e2e/reminders-rls.spec.ts`.
+
+**Other guards.** Notification inserts have no server-action path at all.
+Recipient email for reminder messages comes from GoTrue (auth identity),
+never from client input; product names in emails are HTML-escaped before
+templating.
+
+**Failure containment.** Email-provider failures degrade to a per-channel
+outcome; they cannot block in-app delivery, and retries cannot duplicate
+sends because each occurrence is claimed once via an atomic
+compare-and-set on `last_sent_key` before any send is attempted.
+
+## 22. F3 — recipe AI chat (2026-08-18, contract finalized 2026-08-19)
+
+**Vendor privacy boundary.** Providers (Gemini, Groq via the Vercel AI SDK)
+receive a provider-neutral `AICompletionRequest` whose fridge snapshot is
+`AIInventoryUnit[]`: an opaque per-turn ref (`item_1`, `item_2`, …) plus
+product name, brand, package size, category, and remaining percentage.
+**No database UUIDs, no user id/email, no tokens, no timestamps, no
+history/notification tables** cross the boundary; the ref → row-id map
+never leaves the orchestrator (`src/lib/ai/orchestrator.ts`), and stored
+`matchedItemIds`/`proposalId` values are omitted when history is rendered
+for a model. Enforced by types (the request type simply has no id fields)
+and by wire-shape tests (`provider.test.ts`, `route.test.ts`).
+
+**Mutation safety.** Chat tools can only *stash drafts*; the turn persists
+them as `pending ai_action_proposals`. Fridge rows change exclusively in
+`acceptAIAddProposal` / `acceptAIConsumptionProposal`, which reload the
+proposal from the database under RLS, require `pending`, re-validate the
+stored payload with Zod, re-check current fridge state (stale consumption
+transitions are rejected), and reuse the audited MVP mutation actions.
+Model-drafted refs are resolved server-side against the same turn snapshot
+they were minted from; an unknown ref aborts the turn as an internal error.
+
+**Keys and limits.** `GOOGLE_GENERATIVE_AI_API_KEY` / `GROQ_API_KEY` are
+server-only (never `NEXT_PUBLIC`), read inside the registry at request
+time, and never echoed in responses (tested). The route is authenticated,
+Zod-validated, size-capped, and rate-limited per user (10 turns/min,
+in-memory). Failover is sequential and replays the same canonical history;
+it triggers on transient vendor failures only, so application bugs are
+never retried against a second vendor.
+
+## 23. V2 convergence review (2026-08-19)
+
+**Restock lineage (`fridge_items.restocked_from_item_id`) — static review.**
+The F0 policy is sufficient; no new migration was needed. INSERT and UPDATE
+`with check` clauses require the referenced source row to exist **and**
+belong to `auth.uid()` (subquery against the owner-scoped SELECT policy —
+no recursion: the SELECT policy is not self-referential). The policy check
+runs before the FK constraint, so a cross-user or nonexistent source id
+fails with the same 42501, leaving no FK existence oracle. `ON DELETE SET
+NULL` only ever nulls same-user references, since cross-user lineage can
+never be created.
+
+**Hosted test F5 must run (needs two real users on a migrated project):**
+B creates `fridge_items` rows with `restocked_from_item_id` set to (a) one
+of A's item ids and (b) a random nonexistent UUID — both must fail with
+identical 42501 errors; (c) B `UPDATE`s an own row pointing lineage at A's
+item id — 42501 or zero rows; (d) confirm the same-shaped failure for (a)
+and (b) so row existence is not distinguishable. Extend
+`e2e/reminders-rls.spec.ts` conventions (see `e2e/permissions.spec.ts`).
+
+---
+
+## 24. F5 — hosted integration verification & fixes (2026-08-19/20)
+
+F5 applied all V2 migrations to the hosted project and verified this
+document's claims **empirically against the live database** (ordinary
+anon-key sessions for the two dedicated E2E users; the service role only
+for out-of-band seeding/cleanup, never for attacks). Three genuine security
+defects were found and fixed additively.
+
+### 24.1 Defects found by hosted verification
+
+1. **Legacy default ACLs voided the documented grant posture.** The hosted
+   project predates the "no default grants" platform change: a
+   `pg_default_acl` entry granted `anon` / `authenticated` full table
+   privileges on every newly created table, silently overriding §5's
+   documented posture and the column-scoped hardening on `notifications`
+   and `ai_action_proposals` (owners could have rewritten notification text
+   or pending proposal payloads through PostgREST; cross-user access and
+   INSERT forgery were always still blocked by RLS).
+   **Fix:** `20260819000100_data_api_privilege_alignment.sql` — revokes
+   everything from `anon` (verified: signed-out reads now fail 42501 at the
+   privilege layer), strips DDL-adjacent verbs from `authenticated`,
+   re-establishes `read_at`-only / `status`+`updated_at`-only column
+   grants, and rewrites the default ACL so future tables cannot regress.
+2. **The §23 lineage policy was broken in the other direction.** Inside the
+   policies' EXISTS subquery the unqualified `restocked_from_item_id`
+   bound to the inner table (`src`), so the ownership check degenerated to
+   `src.id = src.restocked_from_item_id` — permanently false. Attacks were
+   rejected, but so was every legitimate restock (the first empirical run
+   caught what static review had not).
+   **Fix:** `20260819000200_fix_lineage_policy_scope.sql` qualifies the
+   outer column. Hosted results after the fix: cross-user lineage INSERT
+   → 42501; nonexistent-UUID lineage INSERT → byte-identical 42501 (no
+   existence oracle); cross-user lineage UPDATE → 42501; same-user lineage
+   (the real restock flow) succeeds.
+3. **`days_of_week` CHECK used a subquery** — Postgres rejects subqueries
+   in CHECK constraints, so the foundation migration could never apply.
+   Rewritten in place (it had never been applied anywhere) using an
+   IMMUTABLE `smallint_array_is_distinct` helper. Constraint behavior is
+   unchanged and was re-verified hosted (duplicate/out-of-range/empty
+   arrays all rejected).
+
+### 24.2 Hosted verification results (all pass)
+
+- **Reminder RLS** (`e2e/reminders-rls.spec.ts` against the hosted DB):
+  cross-user schedule invisibility both directions, notification forgery
+  denied (self and cross-user), mark-own-notification-read works,
+  `last_sent_key` unwritable via UPDATE and unsmugglable via INSERT,
+  legitimate schedule editing works.
+- **Lineage RLS** (`e2e/lineage-rls.spec.ts`, added by F5): full attack
+  matrix above, including the indistinguishability check.
+- **MVP regression:** the pre-V2 journeys (login, fridge, search, barcode,
+  add, consume, finish, restock) pass unchanged against the migrated
+  hosted project; old rows with NULL lineage are unaffected.
+- **AI privacy (§22) reconfirmed on the deployed build:** provider
+  payloads contain only ref/name/brand/packageSize/category/percent —
+  `itemId` exists solely in the orchestrator-side snapshot and
+  post-response resolution; history rendering strips `matchedItemIds` /
+  `proposalId`; no prompt/inventory logging. Verified by code audit +
+  unit tests (`snapshot.test.ts`, `provider.test.ts`, `messages.test.ts`).
+- **Vercel env audit:** `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` (Preview +
+  Production), `GOOGLE_GENERATIVE_AI_API_KEY` / `GROQ_API_KEY` (Preview +
+  Production, Sensitive, server-only). **No service-role key exists on
+  Vercel.** No `NEXT_PUBLIC_` AI variables.
+
+### 24.3 Provider-failure classification hardening
+
+Live verification surfaced a vendor behavior the taxonomy missed: Groq
+validates tool-call arguments server-side and reports a **model-generated**
+schema violation as HTTP 400 `tool_use_failed`. That is unusable model
+output (transient class), not an application bug, so
+`isTransientProviderFailure` now fails over on exactly that code — plain
+400s and auth failures remain fatal. Found when live models wrote
+ingredient quantities longer than the 40-char tool cap (raised to 100).
+Real Gemini free-tier 429s were observed failing over to Groq in
+production code paths with the provider chain invisible to the user.
