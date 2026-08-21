@@ -30,7 +30,9 @@ export interface AIRuntimeConfig {
 export const AI_DEFAULTS = {
   providerOrder: "google,groq",
   googleModel: "gemini-2.5-flash",
-  groqModel: "llama-3.3-70b-versatile",
+  // llama-3.3-70b-versatile was decommissioned by Groq (404 as of Aug 2026);
+  // gpt-oss-120b is the strongest tool-calling chat model in their catalog.
+  groqModel: "openai/gpt-oss-120b",
   providerTimeoutMs: 30_000,
   maxOutputTokens: 2_048,
 } as const;

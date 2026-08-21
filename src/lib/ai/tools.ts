@@ -38,7 +38,11 @@ const itemRefSchema = z
 
 const modelIngredientSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  quantity: z.string().trim().min(1).max(40).optional(),
+  // 100 (was 40): live models legitimately write quantities like
+  // "4 fresh tomatoes, diced (or 1 can diced tomatoes)" (49 chars); Groq
+  // enforces tool schemas server-side and 400s on violation (found on
+  // hosted verification, F5).
+  quantity: z.string().trim().min(1).max(100).optional(),
   optional: z.boolean().optional(),
   matchedItemRefs: z.array(itemRefSchema).max(20).optional(),
   availability: z.enum(["have", "missing", "unconfirmed"]),
@@ -54,7 +58,7 @@ const proposeRecipeSchema = z.object({
 
 const askAboutIngredientSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  quantity: z.string().trim().min(1).max(40).optional(),
+  quantity: z.string().trim().min(1).max(100).optional(),
   availability: z.enum(["missing", "unconfirmed"]),
   question: z.string().trim().min(1).max(300),
 });

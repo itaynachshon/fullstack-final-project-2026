@@ -35,7 +35,24 @@ export function NotificationBell() {
       const result = await listNotifications({});
       // Errors keep the last list: a bell that silently misses a beat is
       // better than one that flashes red in the shell chrome.
-      if (result.ok) setItems(result.data);
+      if (result.ok) {
+        setItems((current) => {
+          // Merge, don't replace: a response that was already in flight when
+          // the user tapped "mark read" must not resurrect the row as unread
+          // (found against real hosted latency). Server-read always wins;
+          // locally-read survives until the server confirms it.
+          const locallyRead = new Map(
+            (current ?? [])
+              .filter((item) => item.readAt !== null)
+              .map((item) => [item.id, item.readAt]),
+          );
+          return result.data.map((row) =>
+            row.readAt !== null
+              ? row
+              : { ...row, readAt: locallyRead.get(row.id) ?? null },
+          );
+        });
+      }
     });
   }, []);
 

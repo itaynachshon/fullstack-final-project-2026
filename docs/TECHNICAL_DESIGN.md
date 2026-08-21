@@ -4,7 +4,7 @@
 |---|---|
 | **Course** | Internet Technologies — Become a Full-Stack Engineer (RUNI CS 2026, final assignment) |
 | **Document role** | Assignment stage 4 — detailed technical design, written **before implementation** |
-| **Status** | Approved design. **As of this writing the repository contains documentation only** — every folder, file, table, and contract below is the *planned* design that implementation must follow, not a description of existing code. |
+| **Status** | Historical MVP design (written when the repository contained documentation only). The MVP and V2 are now fully implemented; where reality diverged, later documents win: `docs/FEATURES_V2_PLAN.md` (V2 architecture + §13 as-built record), `docs/RESTOCK_REMINDERS.md` (reminder worker), `docs/SECURITY.md` (final RLS/privilege posture incl. §24 hosted verification), `docs/TEST_SPEC.md` §17 (final test evidence). |
 | **Date** | 2026-08-15 |
 | **Companion documents** | `docs/PRODUCT_SPEC.md` (what and why), `docs/ARCHITECTURE.md` (system structure), `docs/IMPLEMENTATION_PLAN.md` (decision log and build order) |
 

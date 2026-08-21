@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Frozen foundation for parallel V2 feature work. The MVP remains the production baseline and must not regress. |
-| **Date** | 2026-08-18 |
+| **Status** | Historical F0 plan + as-built record. V2 is implemented and hosted-verified; §13 records where the build deliberately diverged from this plan and what F5 verified live. |
+| **Date** | 2026-08-18 (plan) · 2026-08-20 (F5 as-built addendum) |
 | **Authoring agent** | F0 — V2 Foundation Architect |
 | **Companion documents** | `docs/PRODUCT_SPEC.md`, `docs/ARCHITECTURE.md`, `docs/TECHNICAL_DESIGN.md`, `docs/SECURITY.md`, `docs/TEST_SPEC.md`, `docs/IMPLEMENTATION_PLAN.md` |
 | **Code contracts** | `src/lib/v2/` (new, frozen) — do **not** edit `src/lib/types.ts` or `src/lib/schemas.ts` for V2 |
@@ -83,10 +83,10 @@ flowchart TD
     end
 
     subgraph f2 [F2 — reminders]
-      SettingsUI["/settings + notification bell"]
+      SettingsUI["reminder editor on /restock + notification bell (as built; the planned /settings page was never needed)"]
       ReminderQ["src/lib/reminders/"]
-      Cron["POST /api/cron/restock-reminders"]
-      Mail["Email provider adapter"]
+      Cron["Supabase Edge Function restock-reminders via pg_cron + pg_net (as built; replaced the planned Vercel Cron route)"]
+      Mail["Email provider adapter (Brevo)"]
     end
 
     subgraph f3 [F3 — recipe AI]
@@ -231,9 +231,9 @@ Same as today: `supabase db push` (or SQL editor, filename order). This file run
 - `src/lib/reminders/` — schedule matching, `last_sent_key`, email adapter **interface**
 - `src/lib/v2/actions/reminders.ts` — replace CRUD stubs
 - `src/lib/v2/actions/notifications.ts` — replace `markNotificationRead` / `listNotifications`
-- `src/app/(app)/settings/` — reminder configuration page
-- `src/app/api/cron/restock-reminders/route.ts` — create this; F0 did not
-- `src/components/settings/`
+- `src/app/(app)/settings/` — reminder configuration page *(as built: lives on `/restock` instead; no settings page ships and F5 removed the unused route constant)*
+- `src/app/api/cron/restock-reminders/route.ts` — create this; F0 did not *(as built: a Supabase Edge Function replaced this route entirely)*
+- `src/components/settings/` *(as built: `src/components/reminders/`)*
 - `src/components/notifications/`
 - `src/components/app-shell/TopBar.tsx` — add settings icon + notification bell only (do not add a Chat tab here)
 
@@ -347,6 +347,13 @@ History is a read over existing rows plus one FK. No jobs.
 
 ### 8.2 F2 scheduler + email (accepted V2 exception)
 
+> **As built (F2, verified by F5):** F2 implemented this as a **Supabase Edge
+> Function** (`supabase/functions/restock-reminders/`) invoked by
+> **pg_cron → pg_net every 5 minutes**, gated by `RESTOCK_CRON_SECRET`
+> (stored in Vault, never in committed SQL). The service-role key therefore
+> never reaches Vercel at all — it stays inside the Supabase runtime. The
+> constraints below record the original plan.
+
 MVP architecture rejected cron/email. V2 reminders require them. Constraints:
 
 - One Vercel Cron route, Hobby-compatible schedule (at least hourly; F2 chooses).
@@ -402,9 +409,56 @@ Do not extend Playwright MVP journeys until each feature is implemented. Credent
 
 ## 12. Unresolved issues (F0)
 
+> **F5 status:** every item below is resolved. (1) All V2 migrations are
+> applied to the hosted project and verified. (3) is moot — the scheduler is
+> a Supabase Edge Function, so no service-role key exists on Vercel. (4) F3
+> chose Google Gemini (`gemini-2.5-flash`) → Groq (`openai/gpt-oss-120b`)
+> with env names `GOOGLE_GENERATIVE_AI_API_KEY` / `GROQ_API_KEY`. (5) F2
+> chose Brevo. (6) remains a pre-existing MVP item.
+
 1. **Hosted migration not applied by F0.** Agents F1–F3 will 500 against production until `supabase db push` includes `20260818000000_v2_foundation.sql`.
 2. **Assignment markdown files** (`English-Assignment.md`, `Hebrew-Assignment.md`) are not in this repository; requirements were taken from the existing design docs.
 3. **F2 service-role on Vercel** is a deliberate break from "no runtime service-role key". It must stay confined to the cron route.
 4. **AI provider choice** is not frozen beyond the `AIProvider` interface — F3 picks vendors and env names.
 5. **Email vendor** is not frozen — F2 picks one and wraps it.
 6. **Physical-phone camera QA** remains pending from MVP (`docs/TEST_SPEC.md` §9) and is unrelated to V2.
+
+---
+
+## 13. F5 as-built verification record (2026-08-20)
+
+What F5 changed and empirically verified against the real hosted
+infrastructure (hosted Supabase Frankfurt + Vercel Preview deployments).
+Full evidence lives in `docs/SECURITY.md` §24 and `docs/TEST_SPEC.md` §17;
+reminder deployment detail in `docs/RESTOCK_REMINDERS.md` §11.
+
+**Deliberate divergences from this plan (all documented in place above):**
+
+- Reminder scheduler: Supabase Edge Function + pg_cron/pg_net (5-minute
+  tick), not a Vercel Cron route; `RESTOCK_CRON_SECRET` lives in Supabase
+  secrets + Vault; **no service-role key on Vercel, ever**.
+- Reminder UI: lives on `/restock`; the reserved `/settings` route constant
+  had no consumer and was removed (`src/lib/v2/routes.ts` + contract tests).
+- Email vendor: Brevo (`BREVO_API_KEY`, `RESTOCK_EMAIL_FROM`).
+- AI vendors: Gemini `gemini-2.5-flash` primary → Groq `openai/gpt-oss-120b`
+  fallback (the originally configured `llama-3.3-70b-versatile` was
+  decommissioned by Groq and 404s; F5 made the minimal default change).
+
+**Integration defects found on real infrastructure and fixed additively:**
+
+1. `20260818000000` originally used a subquery inside a CHECK constraint —
+   Postgres rejects that; rewritten in place (never previously applied) via
+   an IMMUTABLE helper function.
+2. Hosted project carried legacy default ACLs granting broad table
+   privileges — corrected by migration `20260819000100_data_api_privilege_alignment.sql`.
+3. The lineage RLS subquery bound `restocked_from_item_id` to the inner
+   table, blocking every legitimate restock — corrected by migration
+   `20260819000200_fix_lineage_policy_scope.sql`.
+4. Tool schemas capped ingredient `quantity` at 40 chars; live models write
+   longer strings and Groq enforces the schema server-side (HTTP 400
+   `tool_use_failed`) — cap raised to 100, and that vendor error is now
+   classified as transient unusable output so the chain fails over instead
+   of dying.
+5. `NotificationBell` could resurrect a just-read row from an in-flight
+   list response (visible under real Preview latency) — refresh now merges
+   instead of replacing.

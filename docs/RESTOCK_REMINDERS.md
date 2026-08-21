@@ -286,3 +286,40 @@ schedule whose local time just passed, omit `dryRun` to actually send).
 See `docs/SECURITY.md` §21: RLS matrix for both tables, the no-secrets-on-
 Vercel boundary, cron secret handling (Vault + timing-safe compare,
 fail-closed), and why notification forgery is impossible for ordinary users.
+
+## 11. Hosted deployment — verified (F5, 2026-08-19/20)
+
+Everything below ran against the real hosted Supabase project (Frankfurt),
+not a local stack.
+
+- **Edge Function deployed:** `restock-reminders` via
+  `npx supabase functions deploy restock-reminders --no-verify-jwt`
+  (the `RESTOCK_CRON_SECRET` Bearer gate replaces JWT verification).
+- **Secrets configured** (names only): `RESTOCK_CRON_SECRET`, `APP_URL`;
+  Supabase runtime provides its own `SUPABASE_URL` /
+  `SUPABASE_SERVICE_ROLE_KEY` to the function. `BREVO_API_KEY` /
+  `RESTOCK_EMAIL_FROM` are set when Brevo credentials are provided —
+  until then the email channel reports `failed` per reminder while in-app
+  delivery proceeds independently (verified).
+- **pg_cron/pg_net configured** from `cron.sql`: job `restock-reminders`
+  every 5 minutes, invoking the function with the secret read from Vault.
+  Job existence and per-tick run metadata verified via `cron.job` /
+  `cron.job_run_details` / `net._http_response`.
+- **Controlled-time matrix (worker invoked with a pinned `now`):** due /
+  not-due / disabled / in-app-only / email-only / both-channels /
+  empty-fridge reminders behaved exactly per §4: dry runs write nothing;
+  real runs claimed `last_sent_key` with the occurrence key, created
+  exactly the expected in-app notifications (title, low-product body,
+  `occurrence_key` metadata), consumed empty-fridge occurrences silently,
+  and a duplicate invocation of the same occurrence was a complete no-op
+  (`already_sent`, zero new notifications).
+- **Real wall-clock cron:** a reminder scheduled a few minutes ahead was
+  picked up by the real 5-minute cron without any manual invocation —
+  `last_sent_key` claimed with the correct local-time occurrence key and
+  exactly one notification created; ~250 subsequent real ticks over ~21
+  hours produced zero duplicates. Test schedule, item, and notification
+  were removed afterwards.
+- **In-app UI:** bell badge, panel content, and `read_at`-only mark-read
+  verified against a deployed Vercel Preview (see `docs/TEST_SPEC.md` §17).
+- **Email delivery:** pending Brevo credentials from the account owner —
+  not claimed as verified.

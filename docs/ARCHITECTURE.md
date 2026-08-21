@@ -4,7 +4,7 @@
 |---|---|
 | **Course** | Internet Technologies — Become a Full-Stack Engineer (RUNI CS 2026, final assignment) |
 | **Document role** | Assignment stage 3 — software architecture design |
-| **Status** | Approved for implementation. Written **before** any application code, per the assignment's required work order. |
+| **Status** | Historical MVP architecture (written before any application code, per the assignment's required work order) + V2 addendum below. The V2 runtime adds: a Supabase Edge Function reminder worker driven by pg_cron/pg_net (5-minute tick, Brevo email adapter — see `docs/RESTOCK_REMINDERS.md`), and a provider-neutral AI chat backend (Gemini `gemini-2.5-flash` → Groq `openai/gpt-oss-120b` failover behind server-only keys — see `docs/FEATURES_V2_PLAN.md` §13 and `docs/SECURITY.md` §22/§24). Both were deployed and verified against the hosted project on 2026-08-19/20. |
 | **Date** | 2026-08-15 |
 | **Companion documents** | `docs/PRODUCT_SPEC.md` (stage 2 — what we build and why), `docs/TECHNICAL_DESIGN.md` (stage 4 — detailed design: schemas, contracts, components) |
 

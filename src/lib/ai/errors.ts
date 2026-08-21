@@ -120,6 +120,13 @@ export function isTransientProviderFailure(error: unknown, depth = 0): boolean {
     if (error.isRetryable) return true;
     const status = error.statusCode;
     if (status === undefined) return false;
+    // Groq validates tool-call arguments server-side and reports a
+    // MODEL-generated schema violation as HTTP 400 code "tool_use_failed"
+    // (seen live in F5). That is unusable model output — the documented
+    // transient class — not an application bug, so the next vendor may try.
+    if (status === 400 && vendorErrorCode(error) === "tool_use_failed") {
+      return true;
+    }
     return status >= 500 || TRANSIENT_STATUS.has(status);
   }
 
@@ -146,6 +153,12 @@ export function isTransientProviderFailure(error: unknown, depth = 0): boolean {
   }
 
   return false;
+}
+
+/** OpenAI-compatible error code from a vendor 4xx body, if present. */
+function vendorErrorCode(error: InstanceType<typeof APICallError>): string {
+  const data = error.data as { error?: { code?: unknown } } | undefined;
+  return typeof data?.error?.code === "string" ? data.error.code : "";
 }
 
 /**

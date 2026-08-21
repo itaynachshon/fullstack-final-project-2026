@@ -34,7 +34,7 @@ const VENDORS = {
   },
   groq: {
     envKey: "GROQ_API_KEY",
-    model: process.env.AI_GROQ_MODEL?.trim() || "llama-3.3-70b-versatile",
+    model: process.env.AI_GROQ_MODEL?.trim() || "openai/gpt-oss-120b",
     build: (apiKey, model) => createGroq({ apiKey })(model),
   },
 };

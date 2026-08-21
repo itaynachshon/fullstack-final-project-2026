@@ -121,7 +121,9 @@ export const remainingLevelSchema = z.literal(REMAINING_LEVELS);
 
 export const recipeIngredientSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  quantity: z.string().trim().min(1).max(40).nullable(),
+  // Raised 40 → 100 by F5 (backward compatible): the model-facing tool
+  // schema allows 100, so persistence must accept what tools accepted.
+  quantity: z.string().trim().min(1).max(100).nullable(),
   optional: z.boolean(),
   matchedItemIds: z.array(z.uuid()).max(20),
   availability: z.literal(INGREDIENT_AVAILABILITIES),

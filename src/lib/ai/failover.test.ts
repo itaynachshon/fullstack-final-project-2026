@@ -132,6 +132,54 @@ describe("runWithProviderFallback", () => {
     expect(secondary.spy).not.toHaveBeenCalled();
   });
 
+  it("falls back when the vendor rejects model-written tool args (tool_use_failed)", async () => {
+    // Groq validates tool-call arguments server-side and reports the MODEL's
+    // schema violation as HTTP 400 code "tool_use_failed" (seen live in F5).
+    // Unusable model output is the documented transient class.
+    const primary = makeProvider("google", async () => {
+      throw new APICallError({
+        message: "Tool call validation failed",
+        url: "https://provider.example",
+        requestBodyValues: {},
+        statusCode: 400,
+        isRetryable: false,
+        data: { error: { code: "tool_use_failed" } },
+      });
+    });
+    const secondary = makeProvider("groq", async () => RESPONSE);
+
+    const outcome = await runWithProviderFallback({
+      providers: [primary.provider, secondary.provider],
+      request: makeRequest(),
+      timeoutMs: 1_000,
+    });
+    expect(outcome.providerId).toBe("groq");
+    expect(outcome.attempts).toHaveLength(1);
+    expect(outcome.attempts[0].transient).toBe(true);
+  });
+
+  it("does NOT fall back on a plain 400 without a tool_use_failed code", async () => {
+    const primary = makeProvider("google", async () => {
+      throw new APICallError({
+        message: "bad request",
+        url: "https://provider.example",
+        requestBodyValues: {},
+        statusCode: 400,
+        isRetryable: false,
+      });
+    });
+    const secondary = makeProvider("groq", async () => RESPONSE);
+
+    await expect(
+      runWithProviderFallback({
+        providers: [primary.provider, secondary.provider],
+        request: makeRequest(),
+        timeoutMs: 1_000,
+      }),
+    ).rejects.toBeInstanceOf(ProviderFatalError);
+    expect(secondary.spy).not.toHaveBeenCalled();
+  });
+
   it("does NOT fall back on an invalid-credentials rejection", async () => {
     const primary = makeProvider("google", async () => {
       throw new APICallError({
