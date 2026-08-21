@@ -446,6 +446,23 @@ real 5-minute ticks (~21 h). Details: `docs/RESTOCK_REMINDERS.md` §11.
   (`src/lib/v2/actions/ai.test.ts`, `proposal-controller.test.ts`,
   `tools.test.ts`). Owner decision: release now, re-run the live flows
   when the quota resets.
+- **2026-08-21 follow-up attempt (post-release, production URL):** the
+  primary chat journey passed again on production (third pass overall).
+  The flow tests still could not complete: the configured Google key's
+  *daily* free budget proved far smaller than the documented AI-Studio
+  tier (exhausted after a handful of agentic turns — it appears to be a
+  Vertex-express-style key), and with Gemini down, tool-heavy multi-step
+  turns cumulatively exceed Groq's 8k tokens/minute inside a single turn
+  (simple turns still succeed on Groq). Production behavior during this
+  window was the designed degradation: simple questions answered, heavy
+  turns showed the calm "temporarily unavailable" notice with a working
+  retry, message always persisted. Also verified live: the assistant may
+  legitimately ask about a missing ingredient in prose instead of the
+  structured card (persona-allowed nondeterminism); the harness now
+  nudges once for the structured path. Re-run path: execute
+  `e2e/tmp-f5-ai-live.spec.ts` tests 23/24/25 after the Google daily
+  reset (~10:00 Israel time), or sooner with a standard AI-Studio
+  (`AIza…`) key, which has a 250-requests/day budget.
 
 **Fixed during F5 (regression-tested):** Groq `tool_use_failed` →
 transient classification (+2 failover unit tests); ingredient `quantity`
