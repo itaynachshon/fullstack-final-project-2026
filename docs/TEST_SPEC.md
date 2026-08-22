@@ -485,6 +485,18 @@ real 5-minute ticks (~21 h). Details: `docs/RESTOCK_REMINDERS.md` §11.
   assistant *asks* what was used instead of inventing precision, so the
   harness prompt now states "half of each". Re-run: test 25 only, after
   the next daily reset.
+- **2026-08-22 afternoon — root cause found and fixed (config only):**
+  Google's 429 body identified the exact limit:
+  `GenerateRequestsPerDayPerProjectPerModel-FreeTier = 20` — this
+  project's free tier allows only **20 requests/day for
+  `gemini-2.5-flash`** (far below the documented 250), which is why the
+  budget kept exhausting after a handful of agentic turns. The daily
+  quota is **per model**, so production now sets
+  `AI_GOOGLE_MODEL=gemini-2.5-flash-lite` (own, much larger daily
+  budget; tool-calling capable; Groq unchanged as fallback). Verified
+  after redeploy: local smoke green on both providers and the primary
+  chat journey (test 19) passed live on production. No code change; the
+  code default stays `gemini-2.5-flash`.
 
 **Fixed during F5 (regression-tested):** Groq `tool_use_failed` →
 transient classification (+2 failover unit tests); ingredient `quantity`
