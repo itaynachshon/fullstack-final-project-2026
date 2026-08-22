@@ -463,6 +463,28 @@ real 5-minute ticks (~21 h). Details: `docs/RESTOCK_REMINDERS.md` §11.
   `e2e/tmp-f5-ai-live.spec.ts` tests 23/24/25 after the Google daily
   reset (~10:00 Israel time), or sooner with a standard AI-Studio
   (`AIza…`) key, which has a 250-requests/day budget.
+- **2026-08-22 post-reset run (production URL) — flows verified live:**
+  after the Google daily reset, three of the four deferred flow tests
+  **passed against production**:
+  - *23 — missing ingredient, yes path:* structured card → "Yes, I have
+    it" → add proposal → verified **no** fridge mutation before consent →
+    "Add to fridge" → item persisted, "Applied" chip shown.
+  - *23b — missing ingredient, no path:* "I don't have it" acknowledged
+    in prose, no proposal created, fridge row-count unchanged.
+  - *24 — recipe → "I cooked this" → explicit consumption confirm:*
+    recipe card rendered from seeded inventory, consumption proposal with
+    human-readable levels, **no** mutation until "Update fridge", then
+    real quarter-step decrements persisted and proposal marked accepted.
+  Only *25 — stale-proposal conflict* remains unobserved live: the run
+  consumed the small daily Google budget, and its tool-calling turn
+  exceeds Groq's 8k tokens/min alone (retried thrice; the calm
+  "temporarily unavailable" + retry UX behaved correctly each time).
+  The stale-conflict path is fully covered at the unit layer
+  (`proposal-controller.test.ts`, `ai.test.ts`). A live attempt also
+  confirmed correct persona behavior: without explicit quantities the
+  assistant *asks* what was used instead of inventing precision, so the
+  harness prompt now states "half of each". Re-run: test 25 only, after
+  the next daily reset.
 
 **Fixed during F5 (regression-tested):** Groq `tool_use_failed` →
 transient classification (+2 failover unit tests); ingredient `quantity`
